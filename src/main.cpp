@@ -24,10 +24,6 @@ int main(int argc,char* argv[])
     }
 
     IccCalibrator calibrator;
-    calibrator.loadConfig(program.get<std::string>("--config"));
-    calibrator.loadData(program.get<std::string>("--files"));
-    calibrator.calibrate();
-    calibrator.saveResults(program.get<std::string>("--output"));
 
     return 0;
 }

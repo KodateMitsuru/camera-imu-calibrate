@@ -7,3 +7,7 @@
 [submodule "thirdparty/rapidcsv"]
 	path = thirdparty/rapidcsv
 	url = https://github.com/d99kris/rapidcsv
+[submodule "thirdparty/SuiteSparse"]
+	path = thirdparty/SuiteSparse
+	url = https://github.com/sergiud/SuiteSparse.git
+	branch = cmake
