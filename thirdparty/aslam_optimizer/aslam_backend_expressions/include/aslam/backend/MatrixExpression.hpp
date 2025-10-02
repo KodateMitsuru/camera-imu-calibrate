@@ -2,49 +2,48 @@
 #define ASLAM_BACKEND_MATRIX_EXPRESSION_HPP
 
 #include <Eigen/Core>
-#include <boost/shared_ptr.hpp>
 #include <aslam/backend/JacobianContainer.hpp>
-#include "HomogeneousExpression.hpp"
-#include "EuclideanExpression.hpp"
-#include "TransformationExpression.hpp"
+#include <memory>
 #include <set>
 
+#include "EuclideanExpression.hpp"
+#include "HomogeneousExpression.hpp"
+#include "TransformationExpression.hpp"
+
 namespace aslam {
-  namespace backend {
-    
-    class MatrixExpressionNode;
-    class EuclideanExpression;
+namespace backend {
 
-    class MatrixExpression
-    {
-    public:
-      /// \brief initialize from an existing node.
-      MatrixExpression(boost::shared_ptr<MatrixExpressionNode> root);
+class MatrixExpressionNode;
+class EuclideanExpression;
 
-      /// \brief Initialize from an existing node. The node will not be deleted.
-      MatrixExpression(MatrixExpressionNode * root);
-      
-      virtual ~MatrixExpression();
+class MatrixExpression {
+ public:
+  /// \brief initialize from an existing node.
+  MatrixExpression(std::shared_ptr<MatrixExpressionNode> root);
 
-      /// \brief Evaluate the full transformation matrix.
-      Eigen::Matrix3d toMatrix3x3();
-      
-      /// \brief Evaluate the Jacobians in the form (1 - (S \delta v)^\times) \bar C
-      void evaluateJacobians(JacobianContainer & outJacobians) const;
+  /// \brief Initialize from an existing node. The node will not be deleted.
+  MatrixExpression(MatrixExpressionNode* root);
 
-      EuclideanExpression operator*(const EuclideanExpression & p) const;
+  virtual ~MatrixExpression();
 
-      void getDesignVariables(DesignVariable::set_t & designVariables) const;
+  /// \brief Evaluate the full transformation matrix.
+  Eigen::Matrix3d toMatrix3x3();
 
-      boost::shared_ptr<MatrixExpressionNode> root() { return _root; }
-    private:
+  /// \brief Evaluate the Jacobians in the form (1 - (S \delta v)^\times) \bar C
+  void evaluateJacobians(JacobianContainer& outJacobians) const;
 
-      MatrixExpression();
-      boost::shared_ptr<MatrixExpressionNode> _root;
-    };
+  EuclideanExpression operator*(const EuclideanExpression& p) const;
 
-  } // namespace backend
-} // namespace aslam
+  void getDesignVariables(DesignVariable::set_t& designVariables) const;
 
+  std::shared_ptr<MatrixExpressionNode> root() { return _root; }
+
+ private:
+  MatrixExpression();
+  std::shared_ptr<MatrixExpressionNode> _root;
+};
+
+}  // namespace backend
+}  // namespace aslam
 
 #endif /* ASLAM_BACKEND_MATRIX_EXPRESSION_HPP */

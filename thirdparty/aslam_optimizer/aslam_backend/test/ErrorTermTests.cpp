@@ -1,9 +1,8 @@
 #include <sm/eigen/gtest.hpp>
+
 #include "SampleDvAndError.hpp"
 
-
-TEST(ErrorTermTestSuite, testInvR)
-{
+TEST(ErrorTermTestSuite, testInvR) {
   using namespace aslam::backend;
   int D = 4;
   int E = 6;
@@ -15,7 +14,8 @@ TEST(ErrorTermTestSuite, testInvR)
     for (size_t i = 0; i < errs.size(); ++i) {
       block += errs[i]->dimension();
       blocks.push_back(block);
-      boost::shared_ptr<GemanMcClureMEstimator> me(new GemanMcClureMEstimator(errs[i]->getRawSquaredError()));
+      std::shared_ptr<GemanMcClureMEstimator> me(
+          new GemanMcClureMEstimator(errs[i]->getRawSquaredError()));
     }
     buildSystem(D, E, dvs, errs);
     for (size_t i = 0; i < errs.size(); ++i) {
@@ -34,7 +34,8 @@ TEST(ErrorTermTestSuite, testInvR)
       double trueWRse = w * trueRse;
       double wrse = e->getWeightedSquaredError();
       ASSERT_NEAR(wrse, trueWRse, 1e-6);
-      // Check that the weighted squared error, d,  produces  w e^T invR e == d^T d
+      // Check that the weighted squared error, d,  produces  w e^T invR e ==
+      // d^T d
       Eigen::VectorXd we;
       e->getWeightedError(we, false);
       // No M-estimator.
@@ -55,7 +56,8 @@ TEST(ErrorTermTestSuite, testInvR)
         Eigen::MatrixXd JtInvRJ = J.transpose() * invR * J;
         Eigen::MatrixXd wJtwJ = wJ.transpose() * wJ;
         // Check that wJ^T wJ == w J^T invR J
-        ASSERT_DOUBLE_MX_EQ(JtInvRJ, wJtwJ, 1e-6, "Checking the weighted Jacobian");
+        ASSERT_DOUBLE_MX_EQ(JtInvRJ, wJtwJ, 1e-6,
+                            "Checking the weighted Jacobian");
         // Check that wJ^T we == w J^T invR e
         Eigen::VectorXd JtInvRe = J.transpose() * invR * ee;
         Eigen::VectorXd wJtwe = wJ.transpose() * we;
@@ -68,10 +70,11 @@ TEST(ErrorTermTestSuite, testInvR)
         w = e->getMEstimatorWeight(trueRse);
         Eigen::MatrixXd J = jcRaw.asDenseMatrix();
         Eigen::MatrixXd wJ = jc.asDenseMatrix();
-        Eigen::MatrixXd JtInvRJ =  J.transpose() * invR * J * w;
+        Eigen::MatrixXd JtInvRJ = J.transpose() * invR * J * w;
         Eigen::MatrixXd wJtwJ = wJ.transpose() * wJ;
         // Check that wJ^T wJ == w J^T invR J
-        ASSERT_DOUBLE_MX_EQ(JtInvRJ, wJtwJ, 1e-6, "Checking the weighted Jacobian");
+        ASSERT_DOUBLE_MX_EQ(JtInvRJ, wJtwJ, 1e-6,
+                            "Checking the weighted Jacobian");
         // Check that wJ^T we == w J^T invR e
         Eigen::VectorXd JtInvRe = J.transpose() * invR * ee * w;
         Eigen::VectorXd wJtwe = wJ.transpose() * we;
@@ -84,6 +87,3 @@ TEST(ErrorTermTestSuite, testInvR)
     FAIL() << e.what();
   }
 }
-
-
-

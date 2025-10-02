@@ -2,68 +2,69 @@
 #define ASLAM_BACKEND_DV_ADAPTER_HPP
 
 #include <aslam/backend/DesignVariable.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <sm/boost/null_deleter.hpp>
 
 namespace aslam {
-  namespace backend {
+namespace backend {
 
-    template<typename T>
-    class DesignVariableAdapter : public DesignVariable {
-    public:
+template <typename T>
+class DesignVariableAdapter : public DesignVariable {
+ public:
+  // a variable wrapped with the DesignVariableAdapter has to define the
+  // DesignVariableDimension enum (requirement of apriori error terms)
+  // enum {
+  //  DesignVariableDimension = T::DesignVariableDimension
+  //};
 
-      // a variable wrapped with the DesignVariableAdapter has to define the
-      // DesignVariableDimension enum (requirement of apriori error terms)
-      //enum {
-      //  DesignVariableDimension = T::DesignVariableDimension
-      //};
+  /// \brief The dv pointer must remain valid for the life of the optimization
+  /// problem.
+  DesignVariableAdapter(T* dv, bool adapterOwnsPointer);
 
-      /// \brief The dv pointer must remain valid for the life of the optimization problem.
-      DesignVariableAdapter(T* dv, bool adapterOwnsPointer);
+  DesignVariableAdapter(const std::shared_ptr<T>& dv);
 
-      DesignVariableAdapter(const boost::shared_ptr<T>& dv);
+  virtual ~DesignVariableAdapter();
 
-      virtual ~DesignVariableAdapter();
+  T& value();
+  const T& value() const;
 
-      T& value();
-      const T& value() const;
+  Eigen::MatrixXd getParameters();
 
-      Eigen::MatrixXd getParameters();
+  std::shared_ptr<T> valuePtr();
+  std::shared_ptr<const T> constValuePtr() const;
 
-      boost::shared_ptr<T> valuePtr();
-      boost::shared_ptr<const T> constValuePtr() const;
+ private:
+  /// \brief what is the number of dimensions of the perturbation variable.
+  virtual int minimalDimensionsImplementation() const;
 
+  /// \brief Update the design variable.
+  virtual void updateImplementation(const double* dp, int size);
 
-    private:
-      /// \brief what is the number of dimensions of the perturbation variable.
-      virtual int minimalDimensionsImplementation() const;
+  /// \brief Revert the last state update.
+  virtual void revertUpdateImplementation();
 
-      /// \brief Update the design variable.
-      virtual void updateImplementation(const double* dp, int size);
+  /// Returns the content of the design variable
+  virtual void getParametersImplementation(Eigen::MatrixXd& value) const;
 
-      /// \brief Revert the last state update.
-      virtual void revertUpdateImplementation();
+  /// Sets the content of the design variable
+  virtual void setParametersImplementation(const Eigen::MatrixXd& value);
 
-      /// Returns the content of the design variable
-      virtual void getParametersImplementation(Eigen::MatrixXd& value) const;
+  /// \brief the design variable being wrapped.
+  std::shared_ptr<T> _dv;
 
-      /// Sets the content of the design variable
-      virtual void setParametersImplementation(const Eigen::MatrixXd& value);
+  /// \brief a backup for reverting the state.
+  Eigen::MatrixXd _backup;
 
-      /// \brief the design variable being wrapped.
-      boost::shared_ptr<T> _dv;
+  virtual void minimalDifferenceImplementation(
+      const Eigen::MatrixXd& xHat, Eigen::VectorXd& outDifference) const;
 
-      /// \brief a backup for reverting the state.
-      Eigen::MatrixXd _backup;
+  virtual void minimalDifferenceAndJacobianImplementation(
+      const Eigen::MatrixXd& xHat, Eigen::VectorXd& outDifference,
+      Eigen::MatrixXd& outJacobian) const;
+};
 
-      virtual void minimalDifferenceImplementation(const Eigen::MatrixXd& xHat, Eigen::VectorXd& outDifference) const;
-
-      virtual void minimalDifferenceAndJacobianImplementation(const Eigen::MatrixXd& xHat, Eigen::VectorXd& outDifference, Eigen::MatrixXd& outJacobian) const;
-
-    };
-
-  } // namespace backend
-} // namespace aslam
+}  // namespace backend
+}  // namespace aslam
 
 #include "implementation/DesignVariableAdapter.hpp"
 

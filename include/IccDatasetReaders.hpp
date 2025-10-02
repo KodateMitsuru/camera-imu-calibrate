@@ -9,13 +9,6 @@
 #include <string>
 #include <vector>
 
-// Forward declarations
-namespace aslam {
-namespace cv {
-class Time;
-}
-}  // namespace aslam
-
 // IMU measurement structure for CSV reading
 struct ImuMeasurementRaw {
   double timestamp;       // in seconds

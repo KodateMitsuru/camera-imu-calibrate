@@ -20,50 +20,47 @@
     \brief This file tests the IncrementalOptimizationProblem class.
   */
 
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-
 #include <gtest/gtest.h>
 
+#include <aslam/Exceptions.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/JacobianContainer.hpp>
+#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "aslam/calibration/core/IncrementalOptimizationProblem.h"
 #include "aslam/calibration/core/OptimizationProblem.h"
 #include "aslam/calibration/data-structures/VectorDesignVariable.h"
-#include <aslam/Exceptions.hpp>
-#include "aslam/calibration/exceptions/OutOfBoundException.h"
 #include "aslam/calibration/exceptions/InvalidOperationException.h"
+#include "aslam/calibration/exceptions/OutOfBoundException.h"
 
-class DummyErrorTerm :
-  public aslam::backend::ErrorTermFs<3> {
-public:
+class DummyErrorTerm : public aslam::backend::ErrorTermFs<3> {
+ public:
   DummyErrorTerm() = default;
   DummyErrorTerm(const DummyErrorTerm& other) = delete;
-  DummyErrorTerm& operator = (const DummyErrorTerm& other) = delete;
+  DummyErrorTerm& operator=(const DummyErrorTerm& other) = delete;
   ~DummyErrorTerm() {};
-protected:
-  double evaluateErrorImplementation() {
-    return 0;
-  };
+
+ protected:
+  double evaluateErrorImplementation() { return 0; };
   void evaluateJacobiansImplementation(
-    aslam::backend::JacobianContainer& J) const {};
+      aslam::backend::JacobianContainer& J) const {};
 };
 
 using namespace aslam::calibration;
 
 TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
-  auto problem1 = boost::make_shared<OptimizationProblem>();
-  auto dv1 = boost::make_shared<VectorDesignVariable<2> >();
+  auto problem1 = std::make_shared<OptimizationProblem>();
+  auto dv1 = std::make_shared<VectorDesignVariable<2> >();
   dv1->setActive(true);
-  auto dv2 = boost::make_shared<VectorDesignVariable<3> >();
+  auto dv2 = std::make_shared<VectorDesignVariable<3> >();
   dv2->setActive(true);
-  auto dv3 = boost::make_shared<VectorDesignVariable<4> >();
+  auto dv3 = std::make_shared<VectorDesignVariable<4> >();
   dv3->setActive(true);
-  auto et1 = boost::make_shared<DummyErrorTerm>();
-  auto et2 = boost::make_shared<DummyErrorTerm>();
-  auto et3 = boost::make_shared<DummyErrorTerm>();
-  auto et4 = boost::make_shared<DummyErrorTerm>();
+  auto et1 = std::make_shared<DummyErrorTerm>();
+  auto et2 = std::make_shared<DummyErrorTerm>();
+  auto et3 = std::make_shared<DummyErrorTerm>();
+  auto et4 = std::make_shared<DummyErrorTerm>();
   problem1->addDesignVariable(dv1, 0);
   problem1->addDesignVariable(dv2, 0);
   problem1->addDesignVariable(dv3, 1);
@@ -71,28 +68,28 @@ TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
   problem1->addErrorTerm(et2);
   problem1->addErrorTerm(et3);
   problem1->addErrorTerm(et4);
-  auto problem2 = boost::make_shared<OptimizationProblem>();
-  auto dv4 = boost::make_shared<VectorDesignVariable<2> >();
+  auto problem2 = std::make_shared<OptimizationProblem>();
+  auto dv4 = std::make_shared<VectorDesignVariable<2> >();
   dv4->setActive(true);
-  auto dv5 = boost::make_shared<VectorDesignVariable<3> >();
+  auto dv5 = std::make_shared<VectorDesignVariable<3> >();
   dv5->setActive(true);
-  auto et5 = boost::make_shared<DummyErrorTerm>();
-  auto et6 = boost::make_shared<DummyErrorTerm>();
-  auto et7 = boost::make_shared<DummyErrorTerm>();
+  auto et5 = std::make_shared<DummyErrorTerm>();
+  auto et6 = std::make_shared<DummyErrorTerm>();
+  auto et7 = std::make_shared<DummyErrorTerm>();
   problem2->addDesignVariable(dv4, 0);
   problem2->addDesignVariable(dv5, 0);
   problem2->addDesignVariable(dv3, 1);
   problem2->addErrorTerm(et5);
   problem2->addErrorTerm(et6);
   problem2->addErrorTerm(et7);
-  auto problem3 = boost::make_shared<OptimizationProblem>();
-  auto dv6 = boost::make_shared<VectorDesignVariable<6> >();
+  auto problem3 = std::make_shared<OptimizationProblem>();
+  auto dv6 = std::make_shared<VectorDesignVariable<6> >();
   dv6->setActive(true);
-  auto dv7 = boost::make_shared<VectorDesignVariable<6> >();
+  auto dv7 = std::make_shared<VectorDesignVariable<6> >();
   dv7->setActive(true);
-  auto et8 = boost::make_shared<DummyErrorTerm>();
-  auto et9 = boost::make_shared<DummyErrorTerm>();
-  auto et10 = boost::make_shared<DummyErrorTerm>();
+  auto et8 = std::make_shared<DummyErrorTerm>();
+  auto et9 = std::make_shared<DummyErrorTerm>();
+  auto et10 = std::make_shared<DummyErrorTerm>();
   problem3->addDesignVariable(dv4, 0);
   problem3->addDesignVariable(dv6, 0);
   problem3->addDesignVariable(dv3, 1);
@@ -107,7 +104,7 @@ TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
   ASSERT_EQ(incProblem.getOptimizationProblem(1), problem2.get());
   ASSERT_EQ(incProblem.getOptimizationProblem(2), problem3.get());
   ASSERT_THROW(incProblem.getOptimizationProblem(3),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   auto problems = incProblem.getOptimizationProblems();
   ASSERT_EQ(problems.size(), 3);
   ASSERT_TRUE(incProblem.isDesignVariableInProblem(dv1.get()));
@@ -122,22 +119,21 @@ TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
   auto dvs0 = incProblem.getDesignVariablesGroup(0);
   ASSERT_EQ(dvs0.size(), 5);
   ASSERT_EQ(dvs0, IncrementalOptimizationProblem::DesignVariablesP(
-    {dv1.get(), dv2.get(), dv4.get(), dv5.get(), dv6.get()}));
+                      {dv1.get(), dv2.get(), dv4.get(), dv5.get(), dv6.get()}));
   auto dvs1 = incProblem.getDesignVariablesGroup(1);
   ASSERT_EQ(dvs1.size(), 1);
-  ASSERT_EQ(dvs1, IncrementalOptimizationProblem::DesignVariablesP(
-    {dv3.get()}));
+  ASSERT_EQ(dvs1,
+            IncrementalOptimizationProblem::DesignVariablesP({dv3.get()}));
   ASSERT_THROW(incProblem.getDesignVariablesGroup(2),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   auto ets1 = incProblem.getErrorTerms(0);
-  ASSERT_EQ(ets1, IncrementalOptimizationProblem::ErrorTermsSP(
-    {et1, et2, et3, et4}));
+  ASSERT_EQ(ets1,
+            IncrementalOptimizationProblem::ErrorTermsSP({et1, et2, et3, et4}));
   auto ets2 = incProblem.getErrorTerms(1);
-  ASSERT_EQ(ets2, IncrementalOptimizationProblem::ErrorTermsSP(
-    {et5, et6, et7}));
+  ASSERT_EQ(ets2,
+            IncrementalOptimizationProblem::ErrorTermsSP({et5, et6, et7}));
   auto ets3 = incProblem.getErrorTerms(2);
-  ASSERT_EQ(ets3, IncrementalOptimizationProblem::ErrorTermsSP(
-    {et8, et9}));
+  ASSERT_EQ(ets3, IncrementalOptimizationProblem::ErrorTermsSP({et8, et9}));
   ASSERT_THROW(incProblem.getErrorTerms(3), OutOfBoundException<size_t>);
   ASSERT_TRUE(incProblem.isErrorTermInProblem(et1.get()));
   ASSERT_TRUE(incProblem.isErrorTermInProblem(et2.get()));
@@ -187,11 +183,11 @@ TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
   ASSERT_EQ(incProblem.getGroupsOrdering(), std::vector<size_t>({1, 0}));
   ASSERT_EQ(incProblem.designVariable(0), dv3.get());
   ASSERT_THROW(incProblem.setGroupsOrdering({1, 0, 2}),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   ASSERT_THROW(incProblem.setGroupsOrdering({1, 2}),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   ASSERT_THROW(incProblem.setGroupsOrdering({0, 0}),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   incProblem.permuteDesignVariables({1, 0, 2, 3, 4}, 0);
   ASSERT_EQ(incProblem.designVariable(1), dv2.get());
   incProblem.remove(2);
@@ -202,7 +198,7 @@ TEST(AslamCalibrationTestSuite, testIncrementalOptimizationProblem) {
   auto dvs0update = incProblem.getDesignVariablesGroup(0);
   ASSERT_EQ(dvs0update.size(), 4);
   ASSERT_EQ(dvs0update, IncrementalOptimizationProblem::DesignVariablesP(
-    {dv2.get(), dv1.get(), dv4.get(), dv5.get()}));
+                            {dv2.get(), dv1.get(), dv4.get(), dv5.get()}));
   ASSERT_THROW(incProblem.remove(4), OutOfBoundException<size_t>);
   ASSERT_EQ(incProblem.numErrorTerms(), 7);
   ASSERT_FALSE(incProblem.isErrorTermInProblem(et8.get()));

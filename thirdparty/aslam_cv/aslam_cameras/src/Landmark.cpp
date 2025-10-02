@@ -1,22 +1,19 @@
-#include <aslam/Landmark.hpp>
-#include <sm/serialization_macros.hpp>
 #include <aslam/KeypointBase.hpp>
+#include <aslam/Landmark.hpp>
 #include <sm/kinematics/Transformation.hpp>
+#include <sm/serialization_macros.hpp>
 
 namespace aslam {
 
 // Basics
 
-Landmark::Landmark()
-    : _frameId(-1) {
-}
+Landmark::Landmark() : _frameId(-1) {}
 
 Landmark::Landmark(const Landmark& rhs)
     : _descriptor(rhs._descriptor),
       _ph(rhs._ph),
       _landmarkId(rhs._landmarkId),
-      _frameId(rhs._frameId) {
-}
+      _frameId(rhs._frameId) {}
 
 Landmark& Landmark::operator=(const Landmark& rhs) {
   Landmark copy(rhs);
@@ -24,8 +21,7 @@ Landmark& Landmark::operator=(const Landmark& rhs) {
   return *this;
 }
 
-Landmark::~Landmark() {
-}
+Landmark::~Landmark() {}
 
 void Landmark::swap(Landmark& rhs) {
   if (this != &rhs) {
@@ -38,11 +34,9 @@ void Landmark::swap(Landmark& rhs) {
 
 // Descriptor
 
-const DescriptorBase* Landmark::descriptor() const {
-  return _descriptor.get();
-}
+const DescriptorBase* Landmark::descriptor() const { return _descriptor.get(); }
 
-boost::shared_ptr<DescriptorBase> Landmark::descriptorPtr() {
+std::shared_ptr<DescriptorBase> Landmark::descriptorPtr() {
   return _descriptor;
 }
 
@@ -50,7 +44,7 @@ void Landmark::setDescriptor(const DescriptorBase& descriptor) {
   _descriptor.reset(descriptor.clone());
 }
 
-void Landmark::setDescriptorPtr(boost::shared_ptr<DescriptorBase> descriptor) {
+void Landmark::setDescriptorPtr(std::shared_ptr<DescriptorBase> descriptor) {
   _descriptor = descriptor;
 }
 
@@ -64,10 +58,10 @@ const sm::kinematics::UncertainHomogeneousPoint& Landmark::point() const {
   return _ph;
 }
 
-//const sm::kinematics::UncertainHomogeneousPoint* Landmark::phPtr() const
+// const sm::kinematics::UncertainHomogeneousPoint* Landmark::phPtr() const
 //{
-//    return _ph;
-//}
+//     return _ph;
+// }
 
 void Landmark::setPoint(const sm::kinematics::UncertainHomogeneousPoint& ph) {
   _ph = ph;
@@ -75,9 +69,7 @@ void Landmark::setPoint(const sm::kinematics::UncertainHomogeneousPoint& ph) {
 
 // LandmarkId
 
-const LandmarkId& Landmark::landmarkId() const {
-  return _landmarkId;
-}
+const LandmarkId& Landmark::landmarkId() const { return _landmarkId; }
 
 void Landmark::setLandmarkId(const LandmarkId& landmarkId) {
   _landmarkId = landmarkId;
@@ -85,43 +77,36 @@ void Landmark::setLandmarkId(const LandmarkId& landmarkId) {
 
 // FrameId
 
-const boost::uint64_t& Landmark::frameId() const {
-  return _frameId;
-}
+const boost::uint64_t& Landmark::frameId() const { return _frameId; }
 
-void Landmark::setFrameId(const boost::uint64_t & frameId) {
+void Landmark::setFrameId(const boost::uint64_t& frameId) {
   _frameId = frameId;
 }
 
-Eigen::Vector3d Landmark::toEuclidean() const {
-  return _ph.toEuclidean();
-}
-Eigen::Vector4d Landmark::toHomogeneous() const {
-  return _ph.toHomogeneous();
-}
+Eigen::Vector3d Landmark::toEuclidean() const { return _ph.toEuclidean(); }
+Eigen::Vector4d Landmark::toHomogeneous() const { return _ph.toHomogeneous(); }
 
 // Unit tests
 
 bool Landmark::isBinaryEqual(const Landmark& rhs) const {
   bool isEqual = true;
-  //ar >> BOOST_SERIALIZATION_NVP(_descriptor);
+  // ar >> BOOST_SERIALIZATION_NVP(_descriptor);
 
   isEqual = isEqual && SM_CHECKMEMBERSSAME(rhs, _descriptor);
 
-  //ar >> BOOST_SERIALIZATION_NVP(_ph);
+  // ar >> BOOST_SERIALIZATION_NVP(_ph);
   isEqual = isEqual && SM_CHECKMEMBERSSAME(rhs, _ph);
-  //ar >> BOOST_SERIALIZATION_NVP(_landmarkId);
+  // ar >> BOOST_SERIALIZATION_NVP(_landmarkId);
   isEqual = isEqual && SM_CHECKMEMBERSSAME(rhs, _landmarkId);
-  //ar >> BOOST_SERIALIZATION_NVP(_frameId);
+  // ar >> BOOST_SERIALIZATION_NVP(_frameId);
   isEqual = isEqual && SM_CHECKMEMBERSSAME(rhs, _frameId);
   return isEqual;
-
 }
 
 void Landmark::setRandom() {
   /// TODO: Add Descriptor
-  // boost::shared_ptr<DescriptorBase> _descriptor;
-  //PM: Is this correct?
+  // std::shared_ptr<DescriptorBase> _descriptor;
+  // PM: Is this correct?
   _descriptor.reset();
   //_descriptor->setRandom();
 
@@ -130,7 +115,7 @@ void Landmark::setRandom() {
   _frameId = rand();
 }
 
-void Landmark::fromKeypoint(boost::uint64_t frameId, const KeypointBase & kp) {
+void Landmark::fromKeypoint(boost::uint64_t frameId, const KeypointBase& kp) {
   setFrameId(frameId);
   setDescriptorPtr(kp.descriptorPtr());
   setPoint(kp.landmark());
@@ -138,14 +123,14 @@ void Landmark::fromKeypoint(boost::uint64_t frameId, const KeypointBase & kp) {
 }
 
 void Landmark::fromTransformedKeypoint(
-    boost::uint64_t frameId, const KeypointBase & kp,
-    const sm::kinematics::Transformation & T_v_c) {
+    boost::uint64_t frameId, const KeypointBase& kp,
+    const sm::kinematics::Transformation& T_v_c) {
   setFrameId(frameId);
   setDescriptorPtr(kp.descriptorPtr());
-  const sm::kinematics::UncertainHomogeneousPoint * pp_c = kp.landmarkPtr();
+  const sm::kinematics::UncertainHomogeneousPoint* pp_c = kp.landmarkPtr();
   SM_ASSERT_TRUE(std::runtime_error, pp_c != NULL,
                  "The landmark should not be null!");
-  const sm::kinematics::UncertainHomogeneousPoint & p_c = *pp_c;
+  const sm::kinematics::UncertainHomogeneousPoint& p_c = *pp_c;
   setPoint(T_v_c * p_c);
   setLandmarkId(kp.landmarkId());
 }

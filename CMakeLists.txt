@@ -89,6 +89,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     aslam_splines::aslam_splines
     incremental_calibration::incremental_calibration
     aslam_cameras::aslam_cameras
+    aslam_cameras_april::aslam_cameras_april
+    aslam_cv_backend::aslam_cv_backend
+    aslam_time::aslam_time
+    sm_kinematics::sm_kinematics
+    sm_timing::sm_timing
+    sm_logging::sm_logging
     ${OpenCV_LIBS}
 )
 

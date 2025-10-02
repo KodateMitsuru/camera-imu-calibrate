@@ -1,8 +1,9 @@
 #include <cstdlib>
-#include <boost/shared_ptr.hpp>
-#include "gtest/gtest.h"
+#include <memory>
 #include <sm/serialization_macros.hpp>
 #include <sm/typetraits.hpp>
+
+#include "gtest/gtest.h"
 
 #ifndef TEST
 #define TEST(a, b) void TEST_##a_##b()
@@ -10,33 +11,35 @@
 
 class PolyBase {
  public:
-  virtual ~PolyBase(){};
- virtual bool isBinaryEqual(const PolyBase& rhs) const = 0;
+  virtual ~PolyBase() {};
+  virtual bool isBinaryEqual(const PolyBase& rhs) const = 0;
 };
 
 class PolyDerived : public PolyBase {
  private:
   int key_;
   double value_;
+
  public:
-  virtual ~PolyDerived(){};
- void setRandom() {
-   key_ = rand();
-   value_ = static_cast<double>(rand()) / RAND_MAX;
- }
- virtual bool isBinaryEqual(const PolyDerived& rhs) const {
-   bool same = true;
-   same = same && SM_CHECKMEMBERSSAME(rhs, key_);
-   same = same && SM_CHECKMEMBERSSAME(rhs, value_);
-   return same;
- }
+  virtual ~PolyDerived() {};
+  void setRandom() {
+    key_ = rand();
+    value_ = static_cast<double>(rand()) / RAND_MAX;
+  }
+  virtual bool isBinaryEqual(const PolyDerived& rhs) const {
+    bool same = true;
+    same = same && SM_CHECKMEMBERSSAME(rhs, key_);
+    same = same && SM_CHECKMEMBERSSAME(rhs, value_);
+    return same;
+  }
 };
 
-template<typename T>
-class ctPoly{
+template <typename T>
+class ctPoly {
  private:
   int key_;
   double value_;
+
  public:
   void setRandom() {
     key_ = rand();
@@ -50,12 +53,12 @@ class ctPoly{
   }
 };
 
-
-template<typename T>
-class ctPoly2{
+template <typename T>
+class ctPoly2 {
  private:
   int key_;
   double value_;
+
  public:
   void setRandom() {
     key_ = rand();
@@ -67,12 +70,11 @@ class ctPoly2{
     same = same && SM_CHECKMEMBERSSAME(other, value_);
     return same;
   }
-  friend std::ostream& operator<<(std::ostream &os, const ctPoly2<T>& lhs);
+  friend std::ostream& operator<<(std::ostream& os, const ctPoly2<T>& lhs);
 };
 
-
 class OverloadBase {
-public:
+ public:
   int key_;
   double value_;
 };
@@ -91,9 +93,9 @@ class Overload : public OverloadBase {
   }
   bool isBinaryEqual(const OverloadBase& other) const {
     bool same = true;
-      same = same && SM_CHECKMEMBERSSAME(other, key_);
-      same = same && SM_CHECKMEMBERSSAME(other, value_);
-      return same;
+    same = same && SM_CHECKMEMBERSSAME(other, key_);
+    same = same && SM_CHECKMEMBERSSAME(other, value_);
+    return same;
   }
 };
 
@@ -101,6 +103,7 @@ class SimpleEntry {
  private:
   int key_;
   double value_;
+
  public:
   void setRandom() {
     key_ = rand();
@@ -112,29 +115,25 @@ class SimpleEntry {
     same = same && SM_CHECKMEMBERSSAME(other, value_);
     return same;
   }
-  friend std::ostream& operator<<(std::ostream &os, const SimpleEntry& lhs);
+  friend std::ostream& operator<<(std::ostream& os, const SimpleEntry& lhs);
 };
 
-
-std::ostream& operator<<(std::ostream &os, const SimpleEntry& lhs)
-{
+std::ostream& operator<<(std::ostream& os, const SimpleEntry& lhs) {
   os << lhs.key_ << " " << lhs.value_;
   return os;
 }
-
 
 class ComplexEntry {
  private:
   int key_;
   double value_;
   SimpleEntry* pSimple_;
-  boost::shared_ptr<SimpleEntry> pSharedSimple_;
+  std::shared_ptr<SimpleEntry> pSharedSimple_;
 
   bool operator==(const ComplexEntry& other) const;
 
  public:
-
-  ComplexEntry(){
+  ComplexEntry() {
     key_ = 0;
     value_ = 0;
     pSimple_ = new SimpleEntry;
@@ -188,7 +187,6 @@ TEST(SerializationMacros, TestClassesComparisonWorks) {
   ASSERT_FALSE(e2.isBinaryEqual(e1));
 }
 
-
 TEST(SerializationMacros, TestClassesMacroWorks) {
   ComplexEntry e1, e2;
   e1.setRandom();
@@ -228,13 +226,12 @@ TEST(SerializationMacros, TestClassesCopyCtorAssignWorks) {
   ComplexEntry e3(e1);
   ASSERT_TRUE(e3.isBinaryEqual(e1));
   ASSERT_TRUE(e1.isBinaryEqual(e3));
-
 }
 
 TEST(SerializationMacros, TestSharedPointer) {
-  boost::shared_ptr<ComplexEntry> e1(new ComplexEntry);
-  boost::shared_ptr<ComplexEntry> e2(new ComplexEntry);
-  boost::shared_ptr<ComplexEntry> e3(new ComplexEntry);
+  std::shared_ptr<ComplexEntry> e1(new ComplexEntry);
+  std::shared_ptr<ComplexEntry> e2(new ComplexEntry);
+  std::shared_ptr<ComplexEntry> e3(new ComplexEntry);
 
   e1->setRandom();
   e2->setRandom();
@@ -246,7 +243,7 @@ TEST(SerializationMacros, TestSharedPointer) {
 
   ASSERT_TRUE(SM_CHECKSAME(e1, e2));
 
-  boost::shared_ptr<ComplexEntry> e4(new ComplexEntry(*e1));
+  std::shared_ptr<ComplexEntry> e4(new ComplexEntry(*e1));
 
   ASSERT_TRUE(SM_CHECKSAME(e1, e4));
   ASSERT_TRUE(SM_CHECKSAME(e1, e4));
@@ -281,38 +278,46 @@ TEST(SerializationMacros, TestPointer) {
   delete e4;
 }
 
-
 TEST(SerializationMacros, TestClassHasMethodDeduction) {
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<ComplexEntry>::value, 1);
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<SimpleEntry>::value, 0);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<ComplexEntry>::value,
+            1);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<SimpleEntry>::value,
+            0);
 }
 
 TEST(SerializationMacros, TestClassSharedPtrHasMethodDeduction) {
-  typedef boost::shared_ptr<ComplexEntry> T1;
-  typedef boost::shared_ptr<SimpleEntry> T2;
+  typedef std::shared_ptr<ComplexEntry> T1;
+  typedef std::shared_ptr<SimpleEntry> T2;
   ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<T1>::value, 1);
   ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<T2>::value, 0);
 
   T1 t1;
   T2 t2;
 
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t1) >::value, 1);
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t2) >::value, 0);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t1)>::value,
+            1);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t2)>::value,
+            0);
 
   T1& t1r = t1;
   T2& t2r = t2;
 
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t1r) >::value, 1);
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t2r) >::value, 0);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t1r)>::value,
+            1);
+  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<decltype(t2r)>::value,
+            0);
 
   const T1& t1cr = t1;
   const T2& t2cr = t2;
 
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<
-            sm::common::StripConstReference<decltype(t1cr)>::result_t >::value, 1);
-  ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<
-            sm::common::StripConstReference<decltype(t2cr)>::result_t >::value, 0);
-
+  ASSERT_EQ(
+      sm::serialization::internal::HasIsBinaryEqual<
+          sm::common::StripConstReference<decltype(t1cr)>::result_t>::value,
+      1);
+  ASSERT_EQ(
+      sm::serialization::internal::HasIsBinaryEqual<
+          sm::common::StripConstReference<decltype(t2cr)>::result_t>::value,
+      0);
 }
 
 TEST(SerializationMacros, TestClassPtrHasMethodDeduction) {
@@ -322,35 +327,43 @@ TEST(SerializationMacros, TestClassPtrHasMethodDeduction) {
   ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<T2>::value, 0);
 }
 
-
 TEST(SerializationMacros, TestClassHasStreamOperator) {
   ComplexEntry e1;
   e1.setRandom();
 
   sm::serialization::internal::streamIf<
-  sm::serialization::internal::HasOStreamOperator<std::ostream,
-  decltype(e1)>::value, decltype(e1) >::eval(e1);
+      sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                      decltype(e1)>::value,
+      decltype(e1)>::eval(e1);
 
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<
-      std::ostream, SimpleEntry>::value), 1);
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<
-      std::ostream, ComplexEntry>::value), 0);
+  ASSERT_EQ(
+      (sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                       SimpleEntry>::value),
+      1);
+  ASSERT_EQ(
+      (sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                       ComplexEntry>::value),
+      0);
 }
 
 TEST(SerializationMacros, TestSharedPtrHasStreamOperator) {
-  typedef boost::shared_ptr<ComplexEntry> T1;
-  typedef boost::shared_ptr<SimpleEntry> T2;
+  typedef std::shared_ptr<ComplexEntry> T1;
+  typedef std::shared_ptr<SimpleEntry> T2;
 
   T1 e1(new ComplexEntry);
   e1->setRandom();
 
   sm::serialization::internal::streamIf<
-  sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value, T1 >::eval(e1);
+      sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value,
+      T1>::eval(e1);
 
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream, T2>::value), 1);
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value), 0);
+  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                             T2>::value),
+            1);
+  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                             T1>::value),
+            0);
 }
-
 
 TEST(SerializationMacros, TestPtrHasStreamOperator) {
   typedef ComplexEntry* T1;
@@ -360,10 +373,15 @@ TEST(SerializationMacros, TestPtrHasStreamOperator) {
   e1->setRandom();
 
   sm::serialization::internal::streamIf<
-  sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value, T1 >::eval(e1);
+      sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value,
+      T1>::eval(e1);
 
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream, T2>::value), 1);
-  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream, T1>::value), 0);
+  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                             T2>::value),
+            1);
+  ASSERT_EQ((sm::serialization::internal::HasOStreamOperator<std::ostream,
+                                                             T1>::value),
+            0);
 
   delete e1;
 }
@@ -391,7 +409,6 @@ TEST(SerializationMacros, TestClassPolyPtrHasMethodDeduction) {
   typedef PolyDerived T1;
   ASSERT_EQ(sm::serialization::internal::HasIsBinaryEqual<T1>::value, 1);
 }
-
 
 TEST(SerializationMacros, TestClassOverloadHasMethodDeduction) {
   typedef Overload T1;

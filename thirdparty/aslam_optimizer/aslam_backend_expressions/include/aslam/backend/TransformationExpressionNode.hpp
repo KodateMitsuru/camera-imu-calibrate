@@ -3,126 +3,138 @@
 
 #include <Eigen/Core>
 #include <aslam/backend/JacobianContainer.hpp>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <set>
 
 namespace aslam {
-  namespace backend {
-    
-    class TransformationExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      typedef Eigen::Matrix<double,6,6> Matrix6d;
-      typedef Eigen::Matrix<double,4,6> Matrix4x6d;
+namespace backend {
 
-      TransformationExpressionNode();
-      virtual ~TransformationExpressionNode();
+class TransformationExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  typedef Eigen::Matrix<double, 6, 6> Matrix6d;
+  typedef Eigen::Matrix<double, 4, 6> Matrix4x6d;
 
-      /// \brief Evaluate the rotation matrix.
-      Eigen::Matrix4d toTransformationMatrix();
-      
-      /// \brief Evaluate the Jacobians
-      void evaluateJacobians(JacobianContainer & outJacobians) const;   
-    
-      /// \brief Evaluate the Jacobians and apply the chain rule.
-      void evaluateJacobians(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      void getDesignVariables(DesignVariable::set_t & designVariables) const;
-    protected:        
-      // These functions must be implemented by child classes.
-      virtual Eigen::Matrix4d toTransformationMatrixImplementation() = 0;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const = 0;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const = 0;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const = 0;
+  TransformationExpressionNode();
+  virtual ~TransformationExpressionNode();
 
-    };
+  /// \brief Evaluate the rotation matrix.
+  Eigen::Matrix4d toTransformationMatrix();
 
-    
+  /// \brief Evaluate the Jacobians
+  void evaluateJacobians(JacobianContainer& outJacobians) const;
 
-    /**
-     * \class TransformationExpressionNodeMultiply
-     *
-     * \brief A class representing the multiplication of two transformation matrices.
-     * 
-     */
-    class TransformationExpressionNodeMultiply : public TransformationExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      typedef Eigen::Matrix<double,6,6> Matrix6d;
+  /// \brief Evaluate the Jacobians and apply the chain rule.
+  void evaluateJacobians(JacobianContainer& outJacobians,
+                         const Eigen::MatrixXd& applyChainRule) const;
+  void getDesignVariables(DesignVariable::set_t& designVariables) const;
 
-      TransformationExpressionNodeMultiply(boost::shared_ptr<TransformationExpressionNode> lhs, 
-				     boost::shared_ptr<TransformationExpressionNode> rhs);
-      virtual ~TransformationExpressionNodeMultiply();
+ protected:
+  // These functions must be implemented by child classes.
+  virtual Eigen::Matrix4d toTransformationMatrixImplementation() = 0;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const = 0;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const = 0;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const = 0;
+};
 
-    private:
-      virtual Eigen::Matrix4d toTransformationMatrixImplementation();
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+/**
+ * \class TransformationExpressionNodeMultiply
+ *
+ * \brief A class representing the multiplication of two transformation
+ * matrices.
+ *
+ */
+class TransformationExpressionNodeMultiply
+    : public TransformationExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  typedef Eigen::Matrix<double, 6, 6> Matrix6d;
 
-      boost::shared_ptr<TransformationExpressionNode> _lhs;
-      Eigen::Matrix4d _T_lhs;
-      boost::shared_ptr<TransformationExpressionNode> _rhs;
-      Eigen::Matrix4d _T_rhs;
-    };
+  TransformationExpressionNodeMultiply(
+      std::shared_ptr<TransformationExpressionNode> lhs,
+      std::shared_ptr<TransformationExpressionNode> rhs);
+  virtual ~TransformationExpressionNodeMultiply();
 
+ private:
+  virtual Eigen::Matrix4d toTransformationMatrixImplementation();
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
-    /**
-     * \class TransformationExpressionNodeInverse
-     * 
-     * \brief A class representing the inverse of a transformation matrix.
-     *
-     */
-    class TransformationExpressionNodeInverse : public TransformationExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      typedef Eigen::Matrix<double,6,6> Matrix6d;
+  std::shared_ptr<TransformationExpressionNode> _lhs;
+  Eigen::Matrix4d _T_lhs;
+  std::shared_ptr<TransformationExpressionNode> _rhs;
+  Eigen::Matrix4d _T_rhs;
+};
 
-      TransformationExpressionNodeInverse(boost::shared_ptr<TransformationExpressionNode> dvTransformation);
+/**
+ * \class TransformationExpressionNodeInverse
+ *
+ * \brief A class representing the inverse of a transformation matrix.
+ *
+ */
+class TransformationExpressionNodeInverse
+    : public TransformationExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  typedef Eigen::Matrix<double, 6, 6> Matrix6d;
 
-      virtual ~TransformationExpressionNodeInverse();
+  TransformationExpressionNodeInverse(
+      std::shared_ptr<TransformationExpressionNode> dvTransformation);
 
-    private:
-      virtual Eigen::Matrix4d toTransformationMatrixImplementation();
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+  virtual ~TransformationExpressionNodeInverse();
 
-      boost::shared_ptr<TransformationExpressionNode> _dvTransformation;
-      Eigen::Matrix4d _T;
-    };
+ private:
+  virtual Eigen::Matrix4d toTransformationMatrixImplementation();
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
+  std::shared_ptr<TransformationExpressionNode> _dvTransformation;
+  Eigen::Matrix4d _T;
+};
 
-    /**
-     * \class TransformationExpressionNodeMultiply
-     *
-     * \brief A class representing the multiplication of two transformation matrices.
-     * 
-     */
-    class TransformationExpressionNodeConstant : public TransformationExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+/**
+ * \class TransformationExpressionNodeMultiply
+ *
+ * \brief A class representing the multiplication of two transformation
+ * matrices.
+ *
+ */
+class TransformationExpressionNodeConstant
+    : public TransformationExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-        TransformationExpressionNodeConstant(const Eigen::Matrix4d & T);
-        virtual ~TransformationExpressionNodeConstant();
+  TransformationExpressionNodeConstant(const Eigen::Matrix4d& T);
+  virtual ~TransformationExpressionNodeConstant();
 
-    private:
-      virtual Eigen::Matrix4d toTransformationMatrixImplementation();
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+ private:
+  virtual Eigen::Matrix4d toTransformationMatrixImplementation();
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
+  Eigen::Matrix4d _T;
+};
 
-      Eigen::Matrix4d _T;
-    };
-
-
-
-  } // namespace backend
-} // namespace aslam
-
+}  // namespace backend
+}  // namespace aslam
 
 #endif /* ASLAM_TRANSFORMATION_EXPRESSION_NODE */
