@@ -7,7 +7,7 @@
 namespace aslam {
 
 CameraGeometryDesignVariableContainer::CameraGeometryDesignVariableContainer(
-    const boost::shared_ptr<cameras::CameraGeometryBase> & camera,
+    const std::shared_ptr<cameras::CameraGeometryBase>& camera,
     bool estimateProjection, bool estimateDistortion, bool estimateShutter)
     : _estimateProjection(estimateProjection),
       _estimateDistortion(estimateDistortion),
@@ -21,23 +21,23 @@ CameraGeometryDesignVariableContainer::CameraGeometryDesignVariableContainer(
   _cameraDv->setActive(true);
 
   if (_estimateShutter && _camera->minimalDimensionsShutter() == 0) {
-    SM_WARN_STREAM(
-        "Disabling shutter of camera type \"" << typeid(_camera).name()
-            << "\" because it has no variables");
+    SM_WARN_STREAM("Disabling shutter of camera type \""
+                   << typeid(_camera).name()
+                   << "\" because it has no variables");
     _estimateShutter = false;
   }
 
   if (_estimateDistortion && _camera->minimalDimensionsDistortion() == 0) {
-    SM_WARN_STREAM(
-        "Disabling distortion of camera type \"" << typeid(_camera).name()
-            << "\" because it has no variables");
+    SM_WARN_STREAM("Disabling distortion of camera type \""
+                   << typeid(_camera).name()
+                   << "\" because it has no variables");
     _estimateDistortion = false;
   }
 
   if (_estimateProjection && _camera->minimalDimensionsProjection() == 0) {
-    SM_WARN_STREAM(
-        "Disabling projection of camera type \"" << typeid(_camera).name()
-            << "\" because it has no variables");
+    SM_WARN_STREAM("Disabling projection of camera type \""
+                   << typeid(_camera).name()
+                   << "\" because it has no variables");
     _estimateProjection = false;
   }
 
@@ -45,21 +45,19 @@ CameraGeometryDesignVariableContainer::CameraGeometryDesignVariableContainer(
                                  _estimateShutter) == 0) {
     _cameraDv->setActive(false);
   }
-
 }
 
-CameraGeometryDesignVariableContainer::~CameraGeometryDesignVariableContainer() {
-
-}
+CameraGeometryDesignVariableContainer::
+    ~CameraGeometryDesignVariableContainer() {}
 
 /// \brief Get the keypoint time as an expression. If the shutter
 ///        parameters are being estimated, this will be hooked up
 ///        to the camera design variable
 backend::ScalarExpression CameraGeometryDesignVariableContainer::keypointTime(
-    const aslam::Time & imageStamp, const Eigen::VectorXd & y) {
+    const aslam::Time& imageStamp, const Eigen::VectorXd& y) {
   if (_estimateShutter) {
-    boost::shared_ptr < backend::ScalarExpressionNode
-        > root(new ScalarExpressionNodeKeypointTime(imageStamp, y, _cameraDv));
+    std::shared_ptr<backend::ScalarExpressionNode> root(
+        new ScalarExpressionNodeKeypointTime(imageStamp, y, _cameraDv));
     return backend::ScalarExpression(root);
   } else {
     return backend::ScalarExpression(
@@ -68,7 +66,7 @@ backend::ScalarExpression CameraGeometryDesignVariableContainer::keypointTime(
 }
 
 backend::ScalarExpression CameraGeometryDesignVariableContainer::temporalOffset(
-    const Eigen::VectorXd & y) {
+    const Eigen::VectorXd& y) {
   return keypointTime(aslam::Time(), y);
 }
 
@@ -76,10 +74,11 @@ backend::ScalarExpression CameraGeometryDesignVariableContainer::temporalOffset(
 ///        inverse measurement uncertainty, inv(R), and an expression
 ///        representing the point, p_c. For a rolling shutter, the measurement
 ///        time used to produce p_c should be derived from keypointTime() above
-boost::shared_ptr<ReprojectionError> CameraGeometryDesignVariableContainer::createReprojectionError(
-    const Eigen::VectorXd & y, const Eigen::MatrixXd & invR,
+std::shared_ptr<ReprojectionError>
+CameraGeometryDesignVariableContainer::createReprojectionError(
+    const Eigen::VectorXd& y, const Eigen::MatrixXd& invR,
     backend::HomogeneousExpression p_c) {
-  boost::shared_ptr<ReprojectionError> re;
+  std::shared_ptr<ReprojectionError> re;
   if (_camera->minimalDimensions(_estimateProjection, _estimateDistortion,
                                  _estimateShutter) == 0) {
     re.reset(new ReprojectionError(y, invR, p_c, _camera.get()));
@@ -97,31 +96,29 @@ Eigen::VectorXd CameraGeometryDesignVariableContainer::homogeneousToKeypoint(
   return y;
 }
 
-/// \brief Evaluate the jacobians of the homogeneousToKeypoint() with respect to the camera parameters.
+/// \brief Evaluate the jacobians of the homogeneousToKeypoint() with respect to
+/// the camera parameters.
 void CameraGeometryDesignVariableContainer::evaluateJacobians(
-    backend::JacobianContainer & outJacobians, Eigen::Vector4d ph) const {
+    backend::JacobianContainer& outJacobians, Eigen::Vector4d ph) const {
   Eigen::MatrixXd Ji;
-  _camera->homogeneousToKeypointIntrinsicsJacobian(ph, Ji, _estimateProjection,
-                                                   _estimateDistortion,
-                                                   _estimateShutter);
+  _camera->homogeneousToKeypointIntrinsicsJacobian(
+      ph, Ji, _estimateProjection, _estimateDistortion, _estimateShutter);
   outJacobians.add(_cameraDv.get(), Ji);
-
 }
 
-/// \brief Evaluate the jacobians of the homogeneousToKeypoint() with respect to the camera parameters.
+/// \brief Evaluate the jacobians of the homogeneousToKeypoint() with respect to
+/// the camera parameters.
 void CameraGeometryDesignVariableContainer::evaluateJacobians(
-    backend::JacobianContainer & outJacobians,
-    const Eigen::MatrixXd & applyChainRule, Eigen::Vector4d ph) const {
+    backend::JacobianContainer& outJacobians,
+    const Eigen::MatrixXd& applyChainRule, Eigen::Vector4d ph) const {
   Eigen::MatrixXd Ji;
-  _camera->homogeneousToKeypointIntrinsicsJacobian(ph, Ji, _estimateProjection,
-                                                   _estimateDistortion,
-                                                   _estimateShutter);
+  _camera->homogeneousToKeypointIntrinsicsJacobian(
+      ph, Ji, _estimateProjection, _estimateDistortion, _estimateShutter);
   outJacobians.add(_cameraDv.get(), applyChainRule * Ji);
-
 }
 
 void CameraGeometryDesignVariableContainer::getDesignVariables(
-    backend::DesignVariable::set_t & designVariables) const {
+    backend::DesignVariable::set_t& designVariables) const {
   designVariables.insert(_cameraDv.get());
 }
 
@@ -145,7 +142,7 @@ bool CameraGeometryDesignVariableContainer::isActive() const {
   return _cameraDv->isActive();
 }
 
-void CameraGeometryDesignVariableContainer::update(const double * v) {
+void CameraGeometryDesignVariableContainer::update(const double* v) {
   _camera->update(v, _estimateProjection, _estimateDistortion,
                   _estimateShutter);
 }
@@ -156,24 +153,23 @@ int CameraGeometryDesignVariableContainer::minimalDimensions() const {
 }
 
 void CameraGeometryDesignVariableContainer::getParameters(
-    Eigen::MatrixXd & P) const {
+    Eigen::MatrixXd& P) const {
   _camera->getParameters(P, _estimateProjection, _estimateDistortion,
                          _estimateShutter);
 }
 
 void CameraGeometryDesignVariableContainer::setParameters(
-    const Eigen::MatrixXd & P) {
+    const Eigen::MatrixXd& P) {
   _camera->setParameters(P, _estimateProjection, _estimateDistortion,
                          _estimateShutter);
 }
 
 /// \brief return the temporal offset with respect to the intrinsics.
 void CameraGeometryDesignVariableContainer::temporalOffsetIntrinsicsJacobian(
-    const Eigen::VectorXd & keypoint, Eigen::MatrixXd & outJi) const {
-  _camera->temporalOffsetIntrinsicsJacobian(keypoint, outJi,
-                                            _estimateProjection,
-                                            _estimateDistortion,
-                                            _estimateShutter);
+    const Eigen::VectorXd& keypoint, Eigen::MatrixXd& outJi) const {
+  _camera->temporalOffsetIntrinsicsJacobian(
+      keypoint, outJi, _estimateProjection, _estimateDistortion,
+      _estimateShutter);
 }
 
 }  // namespace aslam

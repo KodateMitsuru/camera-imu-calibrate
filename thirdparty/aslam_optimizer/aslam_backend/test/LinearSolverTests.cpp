@@ -1,23 +1,19 @@
-#include <sm/eigen/gtest.hpp>
-
+#include <aslam/backend/BlockCholeskyLinearSystemSolver.hpp>
+#include <aslam/backend/DenseQrLinearSystemSolver.hpp>
+#include <aslam/backend/OptimizationProblem.hpp>
+#include <aslam/backend/Optimizer2.hpp>
+#include <aslam/backend/SparseCholeskyLinearSystemSolver.hpp>
+#include <aslam/backend/SparseQrLinearSystemSolver.hpp>
+#include <boost/lexical_cast.hpp>
 #include <numeric>
+#include <sm/eigen/gtest.hpp>
 
 #include "SampleDvAndError.hpp"
 
-#include <aslam/backend/DenseQrLinearSystemSolver.hpp>
-#include <aslam/backend/SparseCholeskyLinearSystemSolver.hpp>
-#include <aslam/backend/SparseQrLinearSystemSolver.hpp>
-#include <aslam/backend/BlockCholeskyLinearSystemSolver.hpp>
-#include <boost/lexical_cast.hpp>
-#include <aslam/backend/Optimizer2.hpp>
-#include <aslam/backend/OptimizationProblem.hpp>
-
 using namespace aslam::backend;
 
-
-template<typename S1_TYPE, typename S2_TYPE>
-void compareSolvers(int D, int E, bool useM, bool useDiag, int nThreads)
-{
+template <typename S1_TYPE, typename S2_TYPE>
+void compareSolvers(int D, int E, bool useM, bool useDiag, int nThreads) {
   std::string S1Name = typeid(S1_TYPE).name();
   std::string S2Name = typeid(S2_TYPE).name();
   SCOPED_TRACE(("Comparing S1: " + S1Name + " and S2: " + S2Name).c_str());
@@ -76,14 +72,18 @@ TEST(LinearSolverTestSuite, testDenseQr)
    {
        {
            useDiag = false;
-           SCOPED_TRACE(("No Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-           compareSolvers<BlockCholeskyLinearSystemSolver, DenseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
+           SCOPED_TRACE(("No Diagonal and " +
+boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
+           compareSolvers<BlockCholeskyLinearSystemSolver,
+DenseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
        }
 
        {
            useDiag = true;
-           SCOPED_TRACE(("With Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-           compareSolvers<BlockCholeskyLinearSystemSolver, DenseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
+           SCOPED_TRACE(("With Diagonal and " +
+boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
+           compareSolvers<BlockCholeskyLinearSystemSolver,
+DenseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
        }
    }
 
@@ -91,8 +91,7 @@ TEST(LinearSolverTestSuite, testDenseQr)
 }
 */
 
-TEST(LinearSolverTestSuite, testSparseCholesky)
-{
+TEST(LinearSolverTestSuite, testSparseCholesky) {
   using namespace aslam::backend;
   std::vector<DesignVariable*> dvs;
   std::vector<ErrorTerm*> errs;
@@ -103,21 +102,26 @@ TEST(LinearSolverTestSuite, testSparseCholesky)
   for (int nThreads = 0; nThreads < 4; ++nThreads) {
     {
       useDiag = false;
-      SCOPED_TRACE(("No Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-      compareSolvers<SparseCholeskyLinearSystemSolver, BlockCholeskyLinearSystemSolver>(D, E, useM, useDiag, nThreads);
+      SCOPED_TRACE(("No Diagonal and " +
+                    boost::lexical_cast<std::string>(nThreads) + " threads")
+                       .c_str());
+      compareSolvers<SparseCholeskyLinearSystemSolver,
+                     BlockCholeskyLinearSystemSolver>(D, E, useM, useDiag,
+                                                      nThreads);
     }
     {
       useDiag = true;
-      SCOPED_TRACE(("With Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-      compareSolvers<SparseCholeskyLinearSystemSolver, BlockCholeskyLinearSystemSolver>(D, E, useM, useDiag, nThreads);
+      SCOPED_TRACE(("With Diagonal and " +
+                    boost::lexical_cast<std::string>(nThreads) + " threads")
+                       .c_str());
+      compareSolvers<SparseCholeskyLinearSystemSolver,
+                     BlockCholeskyLinearSystemSolver>(D, E, useM, useDiag,
+                                                      nThreads);
     }
   }
 }
 
-
-
-TEST(LinearSolverTestSuite, testSparseQR)
-{
+TEST(LinearSolverTestSuite, testSparseQR) {
   using namespace aslam::backend;
   std::vector<DesignVariable*> dvs;
   std::vector<ErrorTerm*> errs;
@@ -128,14 +132,19 @@ TEST(LinearSolverTestSuite, testSparseQR)
   for (int nThreads = 0; nThreads < 4; ++nThreads) {
     {
       useDiag = false;
-      SCOPED_TRACE(("No Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-      compareSolvers<SparseCholeskyLinearSystemSolver, SparseQrLinearSystemSolver>(D, E, useM, useDiag, nThreads);
+      SCOPED_TRACE(("No Diagonal and " +
+                    boost::lexical_cast<std::string>(nThreads) + " threads")
+                       .c_str());
+      compareSolvers<SparseCholeskyLinearSystemSolver,
+                     SparseQrLinearSystemSolver>(D, E, useM, useDiag, nThreads);
     }
     /*
             {
                 useDiag = true;
-                SCOPED_TRACE(("With Diagonal and " + boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
-                compareSolvers<SparseCholeskyLinearSystemSolver, SparseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
+                SCOPED_TRACE(("With Diagonal and " +
+       boost::lexical_cast<std::string>(nThreads) + " threads").c_str());
+                compareSolvers<SparseCholeskyLinearSystemSolver,
+       SparseQrLinearSystemSolver>(D,E,useM, useDiag, nThreads);
             }*/
   }
 }
@@ -156,15 +165,15 @@ TEST(LinearSolverTestSuite, testOptimizerLevenbergMarquardt)
     std::vector<std::string> policies;
     solvers.push_back("sparse_cholesky");
     solvers.push_back("dense_qr");
-      
+
     policies.push_back("LevenbergMarquardt");
     policies.push_back("DogLeg");
     policies.push_back("GaussNewton");
-      
-    boost::shared_ptr<OptimizationProblem> pb = buildProblem(seed, D, E);
-    std::vector< boost::shared_ptr<OptimizationProblem> > problems;
+
+    std::shared_ptr<OptimizationProblem> pb = buildProblem(seed, D, E);
+    std::vector< std::shared_ptr<OptimizationProblem> > problems;
     for (size_t i = 0; i < solvers.size()*policies.size(); ++i) {
-      boost::shared_ptr<OptimizationProblem> pi = buildProblem(seed, D, E);
+      std::shared_ptr<OptimizationProblem> pi = buildProblem(seed, D, E);
       problems.push_back(pi);
       for (size_t j = 0; j < pb->numErrorTerms(); ++j) {
         double eb = pb->errorTerm(j)->evaluateError();
@@ -193,7 +202,8 @@ TEST(LinearSolverTestSuite, testOptimizerLevenbergMarquardt)
           for (size_t j = 0; j < pb->numErrorTerms(); ++j) {
             double eb = pb->errorTerm(j)->evaluateError();
             double ei = problems[i*k]->errorTerm(j)->evaluateError();
-            ASSERT_NEAR(ei, eb, 1e-6) << "The errors did not reduce in the same way";
+            ASSERT_NEAR(ei, eb, 1e-6) << "The errors did not reduce in the same
+way";
             //std::cout << "ei: " << ei << ", eb: " << eb << std::endl;
           }
         }
@@ -206,9 +216,6 @@ TEST(LinearSolverTestSuite, testOptimizerLevenbergMarquardt)
 
 
 */
-
-
-
 
 /*
 TEST(LinearSolverTestSuite, testXXX)

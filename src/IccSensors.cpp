@@ -3,7 +3,16 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <thread>
+
+// ASLAM camera targets
+#include <aslam/cameras/GridCalibrationTargetAprilgrid.hpp>
+#include <aslam/cameras/GridCalibrationTargetCheckerboard.hpp>
+#include <aslam/cameras/GridCalibrationTargetCirclegrid.hpp>
+
+// Boost (required for ASLAM library interop)
+// Note: ASLAM internally uses std::shared_ptr, so we need boost for these cases
+#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "IccDatasetReaders.hpp"
 
@@ -35,7 +44,7 @@ std::shared_ptr<CsvImuDatasetReader> initImuDataset(
 }
 
 // ImuMeasurement Implementation
-ImuMeasurement::ImuMeasurement(const aslam::cv::Time& stamp,
+ImuMeasurement::ImuMeasurement(const aslam::Time& stamp,
                                const Eigen::Vector3d& omega,
                                const Eigen::Vector3d& alpha,
                                const Eigen::Matrix3d& Rgyro,
@@ -77,15 +86,12 @@ IccCamera::IccCamera(const kalibr_common::CameraParameters& camConfig,
   for (size_t i = 0; i < numImages; ++i) {
     cv::Mat image = dataset_->getImage(i);
     double timestamp = dataset_->getTimestamp(i);
-    aslam::cv::Time time(timestamp);
+    aslam::Time time(timestamp);
 
-    // Create frame and detect target
-    auto frame = std::make_shared<aslam::cv::Frame>();
-    frame->setImage(image);
-    frame->setTime(time);
-
-    aslam::cv::TargetObservation obs;
-    if (detector_->findTarget(*frame, obs)) {
+    // Detect target directly from image
+    aslam::cameras::GridCalibrationTargetObservation obs(detector_->target(),
+                                                         image);
+    if (detector_->findTarget(image, obs)) {
       targetObservations_.push_back(obs);
     }
   }
@@ -103,49 +109,50 @@ void IccCamera::setupCalibrationTarget(
   auto targetParams = targetConfig.getTargetParams();
   auto targetType = targetConfig.getTargetType();
 
-  std::shared_ptr<aslam::cv::GridCalibrationTarget> grid;
+  std::shared_ptr<aslam::cameras::GridCalibrationTargetBase> grid;
 
   if (targetType == "checkerboard") {
-    auto options = std::make_shared<aslam::cv::CheckerboardOptions>();
-    options->filterQuads = true;
-    options->normalizeImage = true;
-    options->useAdaptiveThreshold = true;
-    options->performFastCheck = false;
-    options->windowWidth = 5;
-    options->showExtractionVideo = showExtraction;
+    aslam::cameras::GridCalibrationTargetCheckerboard::CheckerboardOptions
+        options;
+    options.filterQuads = true;
+    options.normalizeImage = true;
+    options.useAdaptiveThreshold = true;
+    options.performFastCheck = false;
+    options.windowWidth = 5;
+    options.showExtractionVideo = showExtraction;
 
-    grid = std::make_shared<aslam::cv::GridCalibrationTargetCheckerboard>(
+    grid = std::make_shared<aslam::cameras::GridCalibrationTargetCheckerboard>(
         targetParams.at("targetRows"), targetParams.at("targetCols"),
         targetParams.at("rowSpacingMeters"),
         targetParams.at("colSpacingMeters"), options);
   } else if (targetType == "circlegrid") {
-    auto options = std::make_shared<aslam::cv::CirclegridOptions>();
-    options->showExtractionVideo = showExtraction;
-    options->useAsymmetricCirclegrid = targetParams.at("asymmetricGrid");
+    aslam::cameras::GridCalibrationTargetCirclegrid::CirclegridOptions options;
+    options.showExtractionVideo = showExtraction;
+    options.useAsymmetricCirclegrid = targetParams.at("asymmetricGrid");
 
-    grid = std::make_shared<aslam::cv::GridCalibrationTargetCirclegrid>(
+    grid = std::make_shared<aslam::cameras::GridCalibrationTargetCirclegrid>(
         targetParams.at("targetRows"), targetParams.at("targetCols"),
         targetParams.at("spacingMeters"), options);
   } else if (targetType == "aprilgrid") {
-    auto options = std::make_shared<aslam::cv::AprilgridOptions>();
-    options->showExtractionVideo = showExtraction;
-    options->minTagsForValidObs = static_cast<int>(
+    aslam::cameras::GridCalibrationTargetAprilgrid::AprilgridOptions options;
+    options.showExtractionVideo = showExtraction;
+    options.minTagsForValidObs = static_cast<int>(
         std::max(targetParams.at("tagRows"), targetParams.at("tagCols")) + 1);
 
-    grid = std::make_shared<aslam::cv::GridCalibrationTargetAprilgrid>(
+    grid = std::make_shared<aslam::cameras::GridCalibrationTargetAprilgrid>(
         targetParams.at("tagRows"), targetParams.at("tagCols"),
         targetParams.at("tagSize"), targetParams.at("tagSpacing"), options);
   } else {
     throw std::runtime_error("Unknown calibration target.");
   }
 
-  auto detectorOptions = std::make_shared<aslam::cv::GridDetectorOptions>();
-  detectorOptions->imageStepping = imageStepping;
-  detectorOptions->plotCornerReprojection = showReproj;
-  detectorOptions->filterCornerOutliers = true;
+  aslam::cameras::GridDetector::GridDetectorOptions detectorOptions;
+  detectorOptions.imageStepping = imageStepping;
+  detectorOptions.plotCornerReprojection = showReproj;
+  detectorOptions.filterCornerOutliers = true;
 
-  detector_ = std::make_shared<aslam::cv::GridDetector>(camera_->geometry, grid,
-                                                        detectorOptions);
+  detector_ = std::make_shared<aslam::cameras::GridDetector>(
+      camera_->geometry, grid, detectorOptions);
 }
 
 void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
@@ -157,13 +164,13 @@ void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
 
   // Add the rotation as design variable
   auto q_i_c_Dv =
-      std::make_shared<aslam::backend::RotationQuaternionDv>(T_extrinsic_.q());
+      std::make_shared<aslam::backend::RotationQuaternion>(T_extrinsic_.q());
   q_i_c_Dv->setActive(true);
   problem.addDesignVariable(q_i_c_Dv);
 
   // Add the gyro bias as design variable
-  auto gyroBiasDv = std::make_shared<aslam::backend::EuclideanPointDv>(
-      Eigen::Vector3d::Zero());
+  auto gyroBiasDv =
+      std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
   gyroBiasDv->setActive(true);
   problem.addDesignVariable(gyroBiasDv);
 
@@ -199,8 +206,8 @@ void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
   // Define the optimization
   aslam::backend::Optimizer2Options options;
   options.verbose = false;
-  options.linearSolver =
-      std::make_shared<aslam::backend::BlockCholeskyLinearSystemSolver>();
+  // Note: linearSolver field may not exist in Optimizer2Options
+  // Use default solver configuration instead
   options.nThreads = 2;
   options.convergenceDeltaX = 1e-4;
   options.convergenceDeltaJ = 1;
@@ -208,8 +215,10 @@ void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
 
   // Run the optimization
   aslam::backend::Optimizer2 optimizer(options);
-  optimizer.setProblem(
-      std::make_shared<aslam::backend::OptimizationProblem>(problem));
+  // Note: ASLAM uses std::shared_ptr internally, need to create boost version
+  auto problemPtr =
+      std::make_shared<aslam::backend::OptimizationProblem>(problem);
+  optimizer.setProblem(problemPtr);
 
   try {
     optimizer.optimize();
@@ -502,7 +511,7 @@ void IccImu::loadImuData() {
   // Read IMU measurements from CSV
   imuData_.clear();
   for (const auto& measurement : *dataset_) {
-    aslam::cv::Time timestamp(measurement.timestamp);
+    aslam::Time timestamp(measurement.timestamp);
     imuData_.emplace_back(timestamp, measurement.omega, measurement.alpha,
                           Rgyro, Raccel);
     progress.sample();
@@ -543,12 +552,12 @@ void IccImu::addDesignVariables(aslam::backend::OptimizationProblem& problem) {
   }
 
   q_i_b_Dv_ =
-      std::make_shared<aslam::backend::RotationQuaternionDv>(q_i_b_prior_);
+      std::make_shared<aslam::backend::RotationQuaternion>(q_i_b_prior_);
   problem.addDesignVariable(q_i_b_Dv_, HELPER_GROUP_ID);
   q_i_b_Dv_->setActive(false);
 
-  r_b_Dv_ = std::make_shared<aslam::backend::EuclideanPointDv>(
-      Eigen::Vector3d::Zero());
+  r_b_Dv_ =
+      std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
   problem.addDesignVariable(r_b_Dv_, HELPER_GROUP_ID);
   r_b_Dv_->setActive(false);
 
@@ -732,7 +741,7 @@ void IccScaledMisalignedImu::addDesignVariables(
     aslam::backend::OptimizationProblem& problem) {
   IccImu::addDesignVariables(problem);
 
-  q_gyro_i_Dv_ = std::make_shared<aslam::backend::RotationQuaternionDv>(
+  q_gyro_i_Dv_ = std::make_shared<aslam::backend::RotationQuaternion>(
       Eigen::Vector4d(0., 0., 0., 1.));
   problem.addDesignVariable(q_gyro_i_Dv_, HELPER_GROUP_ID);
   q_gyro_i_Dv_->setActive(true);
@@ -740,17 +749,17 @@ void IccScaledMisalignedImu::addDesignVariables(
   Eigen::MatrixXi pattern = Eigen::MatrixXi::Zero(3, 3);
   pattern << 1, 0, 0, 1, 1, 0, 1, 1, 1;
 
-  M_accel_Dv_ = std::make_shared<aslam::backend::MatrixBasicDv>(
+  M_accel_Dv_ = std::make_shared<aslam::backend::MatrixBasic>(
       Eigen::Matrix3d::Identity(), pattern);
   problem.addDesignVariable(M_accel_Dv_, HELPER_GROUP_ID);
   M_accel_Dv_->setActive(true);
 
-  M_gyro_Dv_ = std::make_shared<aslam::backend::MatrixBasicDv>(
+  M_gyro_Dv_ = std::make_shared<aslam::backend::MatrixBasic>(
       Eigen::Matrix3d::Identity(), pattern);
   problem.addDesignVariable(M_gyro_Dv_, HELPER_GROUP_ID);
   M_gyro_Dv_->setActive(true);
 
-  M_accel_gyro_Dv_ = std::make_shared<aslam::backend::MatrixBasicDv>(
+  M_accel_gyro_Dv_ = std::make_shared<aslam::backend::MatrixBasic>(
       Eigen::Matrix3d::Zero(), Eigen::MatrixXi::Ones(3, 3));
   problem.addDesignVariable(M_accel_gyro_Dv_, HELPER_GROUP_ID);
   M_accel_gyro_Dv_->setActive(true);

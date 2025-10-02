@@ -2,58 +2,62 @@
 #define ASLAM_GENERIC_SCALAR_EXPRESSION_HPP
 
 #include <Eigen/Core>
-#include <boost/shared_ptr.hpp>
 #include <aslam/backend/JacobianContainer.hpp>
+#include <memory>
 #include <set>
 
-
 namespace aslam {
-  namespace backend {
-    template <typename Scalar_>
-    class GenericScalarExpressionNode;
-    
-    template <typename Scalar_>
-    class GenericScalarExpression
-    {
-    public:
-      typedef Scalar_ Scalar;
-      typedef GenericScalarExpressionNode<Scalar> NodeType;
-      typedef boost::shared_ptr<NodeType> SharedNodePointer;
+namespace backend {
+template <typename Scalar_>
+class GenericScalarExpressionNode;
 
-      inline GenericScalarExpression(Scalar value);
-      inline GenericScalarExpression(NodeType * node, bool expressionOwnsNode = false);
-      inline GenericScalarExpression(SharedNodePointer node) { _root = node; }
-      inline GenericScalarExpression(const GenericScalarExpression& /* other */) = default;
+template <typename Scalar_>
+class GenericScalarExpression {
+ public:
+  typedef Scalar_ Scalar;
+  typedef GenericScalarExpressionNode<Scalar> NodeType;
+  typedef std::shared_ptr<NodeType> SharedNodePointer;
 
-      template <typename OtherScalar, typename = decltype(Scalar_(OtherScalar()))>
-      inline GenericScalarExpression(const GenericScalarExpression<OtherScalar> & other);
+  inline GenericScalarExpression(Scalar value);
+  inline GenericScalarExpression(NodeType* node,
+                                 bool expressionOwnsNode = false);
+  inline GenericScalarExpression(SharedNodePointer node) { _root = node; }
+  inline GenericScalarExpression(const GenericScalarExpression& /* other */) =
+      default;
 
-      ~GenericScalarExpression(){}
+  template <typename OtherScalar, typename = decltype(Scalar_(OtherScalar()))>
+  inline GenericScalarExpression(
+      const GenericScalarExpression<OtherScalar>& other);
 
-      Scalar toScalar() const;
-      Scalar toValue() const { return toScalar(); }
-      Scalar evaluate() const { return toScalar(); }
+  ~GenericScalarExpression() {}
 
-      void evaluateJacobians(JacobianContainer & outJacobians) const;
-      void evaluateJacobians(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      void getDesignVariables(DesignVariable::set_t & designVariables) const;
+  Scalar toScalar() const;
+  Scalar toValue() const { return toScalar(); }
+  Scalar evaluate() const { return toScalar(); }
 
-      const SharedNodePointer & root() { return _root; }
+  void evaluateJacobians(JacobianContainer& outJacobians) const;
+  void evaluateJacobians(JacobianContainer& outJacobians,
+                         const Eigen::MatrixXd& applyChainRule) const;
+  void getDesignVariables(DesignVariable::set_t& designVariables) const;
 
-      GenericScalarExpression operator-();
+  const SharedNodePointer& root() { return _root; }
 
-      GenericScalarExpression operator+(const GenericScalarExpression & s);
-      GenericScalarExpression operator-(const GenericScalarExpression & s);
-      GenericScalarExpression operator*(const GenericScalarExpression & s);
-      GenericScalarExpression operator/(const GenericScalarExpression & s);
-    private:
-      GenericScalarExpression();
-      SharedNodePointer _root;
-      template <typename OtherScalar> friend class GenericScalarExpression;
-    };
-    
-  } // namespace backend
-} // namespace aslam
+  GenericScalarExpression operator-();
+
+  GenericScalarExpression operator+(const GenericScalarExpression& s);
+  GenericScalarExpression operator-(const GenericScalarExpression& s);
+  GenericScalarExpression operator*(const GenericScalarExpression& s);
+  GenericScalarExpression operator/(const GenericScalarExpression& s);
+
+ private:
+  GenericScalarExpression();
+  SharedNodePointer _root;
+  template <typename OtherScalar>
+  friend class GenericScalarExpression;
+};
+
+}  // namespace backend
+}  // namespace aslam
 
 #include "implementation/GenericScalarExpression.hpp"
 

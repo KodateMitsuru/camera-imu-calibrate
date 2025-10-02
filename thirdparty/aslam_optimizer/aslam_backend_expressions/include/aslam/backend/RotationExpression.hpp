@@ -2,63 +2,63 @@
 #define ASLAM_BACKEND_ROTATION_EXPRESSION_HPP
 
 #include <Eigen/Core>
-#include <boost/shared_ptr.hpp>
 #include <aslam/backend/JacobianContainer.hpp>
-#include "HomogeneousExpression.hpp"
-#include "EuclideanExpression.hpp"
-#include "TransformationExpression.hpp"
+#include <memory>
 #include <set>
 #include <sm/kinematics/RotationalKinematics.hpp>
 
+#include "EuclideanExpression.hpp"
+#include "HomogeneousExpression.hpp"
+#include "TransformationExpression.hpp"
+
 namespace aslam {
-  namespace backend {
-    
-    class RotationExpressionNode;
-    class TransformationExpression;
-    class EuclideanExpression;
-    class HomogeneousExpression;
+namespace backend {
 
-    class RotationExpression
-    {
-    public:
-        SM_DEFINE_EXCEPTION(Exception, std::runtime_error);
+class RotationExpressionNode;
+class TransformationExpression;
+class EuclideanExpression;
+class HomogeneousExpression;
 
-      /// \breif initialize from an existing node.
-      RotationExpression(boost::shared_ptr<RotationExpressionNode> root);
+class RotationExpression {
+ public:
+  SM_DEFINE_EXCEPTION(Exception, std::runtime_error);
 
-      /// \brief Initialize from an existing node. The node will not be deleted.
-      RotationExpression(RotationExpressionNode * root);
-      
-      virtual ~RotationExpression();
+  /// \breif initialize from an existing node.
+  RotationExpression(std::shared_ptr<RotationExpressionNode> root);
 
-      /// \brief Evaluate the rotation matrix.
-      Eigen::Matrix3d toRotationMatrix();
+  /// \brief Initialize from an existing node. The node will not be deleted.
+  RotationExpression(RotationExpressionNode* root);
 
-      EuclideanExpression toParameters(sm::kinematics::RotationalKinematics::Ptr rk);
-      
-      /// \brief return the expression that inverts the rotation.
-      RotationExpression inverse();
-      
-      /// \brief Evaluate the Jacobians in the form (1 - (S \delta v)^\times) \bar C
-      void evaluateJacobians(JacobianContainer & outJacobians) const;
+  virtual ~RotationExpression();
 
-      RotationExpression operator*(const RotationExpression & p) const;
-      EuclideanExpression operator*(const EuclideanExpression & p) const;
-      HomogeneousExpression operator*(const HomogeneousExpression & p) const;
+  /// \brief Evaluate the rotation matrix.
+  Eigen::Matrix3d toRotationMatrix();
 
-      TransformationExpression toTransformationExpression();
+  EuclideanExpression toParameters(
+      sm::kinematics::RotationalKinematics::Ptr rk);
 
-      void getDesignVariables(DesignVariable::set_t & designVariables) const;
+  /// \brief return the expression that inverts the rotation.
+  RotationExpression inverse();
 
-      boost::shared_ptr<RotationExpressionNode> root() { return _root; }
-    private:
+  /// \brief Evaluate the Jacobians in the form (1 - (S \delta v)^\times) \bar C
+  void evaluateJacobians(JacobianContainer& outJacobians) const;
 
-      RotationExpression();
-      boost::shared_ptr<RotationExpressionNode> _root;
-    };
+  RotationExpression operator*(const RotationExpression& p) const;
+  EuclideanExpression operator*(const EuclideanExpression& p) const;
+  HomogeneousExpression operator*(const HomogeneousExpression& p) const;
 
-  } // namespace backend
-} // namespace aslam
+  TransformationExpression toTransformationExpression();
 
+  void getDesignVariables(DesignVariable::set_t& designVariables) const;
+
+  std::shared_ptr<RotationExpressionNode> root() { return _root; }
+
+ private:
+  RotationExpression();
+  std::shared_ptr<RotationExpressionNode> _root;
+};
+
+}  // namespace backend
+}  // namespace aslam
 
 #endif /* ASLAM_BACKEND_ROTATION_EXPRESSION_HPP */

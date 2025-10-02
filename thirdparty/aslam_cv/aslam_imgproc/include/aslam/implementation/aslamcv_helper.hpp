@@ -1,48 +1,48 @@
-//This file contains modified opencv routines which use the un/distortion functions
-//provided with aslam directly.
+// This file contains modified opencv routines which use the un/distortion
+// functions provided with aslam directly.
 
-//see http://docs.opencv.org/modules/imgproc/doc/geometric_transformations.html
-//for more details about the functions
+// see http://docs.opencv.org/modules/imgproc/doc/geometric_transformations.html
+// for more details about the functions
 
 namespace aslamcv_helper {
 
 using namespace cv;
 
 ///
-//calculates the inner(min)/outer(max) rectangle on the undistorted image
+// calculates the inner(min)/outer(max) rectangle on the undistorted image
 //
-// INPUT:
-//  camera_geometry:  aslam camera geometry (distortion and intrinsics used)
-//  imgSize:          The original image size.
-// OUTPUT:
-//  inner:            inner rectangle (all pixels valid)
-//  outer:            outer rectangle (no pixels lost)
+//  INPUT:
+//   camera_geometry:  aslam camera geometry (distortion and intrinsics used)
+//   imgSize:          The original image size.
+//  OUTPUT:
+//   inner:            inner rectangle (all pixels valid)
+//   outer:            outer rectangle (no pixels lost)
 ///
-template<typename CAMERA_T>
-static void icvGetRectangles(boost::shared_ptr<CAMERA_T> camera_geometry,
+template <typename CAMERA_T>
+static void icvGetRectangles(std::shared_ptr<CAMERA_T> camera_geometry,
                              cv::Size imgSize, cv::Rect_<float>& inner,
                              cv::Rect_<float>& outer) {
   const int N = 9;
   int x, y, k;
-  std::vector<cv::Point2f> _pts(N*N);
+  std::vector<cv::Point2f> _pts(N * N);
 
   for (y = k = 0; y < N; y++) {
     for (x = 0; x < N; x++) {
       Eigen::Vector2d point(x * imgSize.width / (N - 1),
                             y * imgSize.height / (N - 1));
 
-      //normalize
-      Eigen::Matrix3d cameraMatrix = camera_geometry->projection()
-          .getCameraMatrix();
+      // normalize
+      Eigen::Matrix3d cameraMatrix =
+          camera_geometry->projection().getCameraMatrix();
       double cu = cameraMatrix(0, 2), cv = cameraMatrix(1, 2);
       double fu = cameraMatrix(0, 0), fv = cameraMatrix(1, 1);
       point(0) = (point(0) - cu) / fu;
       point(1) = (point(1) - cv) / fv;
 
-      //undistort
+      // undistort
       camera_geometry->projection().distortion().undistort(point);
 
-      _pts[k++] = cv::Point2f((float) point[0], (float) point[1]);
+      _pts[k++] = cv::Point2f((float)point[0], (float)point[1]);
     }
   }
 
@@ -58,35 +58,33 @@ static void icvGetRectangles(boost::shared_ptr<CAMERA_T> camera_geometry,
       oY0 = MIN(oY0, p.y);
       oY1 = MAX(oY1, p.y);
 
-      if (x == 0)
-        iX0 = MAX(iX0, p.x);
-      if (x == N - 1)
-        iX1 = MIN(iX1, p.x);
-      if (y == 0)
-        iY0 = MAX(iY0, p.y);
-      if (y == N - 1)
-        iY1 = MIN(iY1, p.y);
+      if (x == 0) iX0 = MAX(iX0, p.x);
+      if (x == N - 1) iX1 = MIN(iX1, p.x);
+      if (y == 0) iY0 = MAX(iY0, p.y);
+      if (y == N - 1) iY1 = MIN(iY1, p.y);
     }
   inner = cv::Rect_<float>(iX0, iY0, iX1 - iX0, iY1 - iY0);
   outer = cv::Rect_<float>(oX0, oY0, oX1 - oX0, oY1 - oY0);
 }
 
 ///
-//Returns the new camera matrix based on the free scaling parameter.
+// Returns the new camera matrix based on the free scaling parameter.
 //
-// INPUT:
-//  camera_geometry:  Aslam camera geometry (distortion and intrinsics used)
-//  imgSize:          The original image size.
-//  alpha:            Free scaling parameter between 0 (when all the pixels in the undistorted image will be valid)
-//                    and 1 (when all the source image pixels will be retained in the undistorted image)
-//  newImgSize:       Image size after rectification. By default it will be set to imageSize.
-// RETURNS:           The output new camera matrix.
+//  INPUT:
+//   camera_geometry:  Aslam camera geometry (distortion and intrinsics used)
+//   imgSize:          The original image size.
+//   alpha:            Free scaling parameter between 0 (when all the pixels in
+//   the undistorted image will be valid)
+//                     and 1 (when all the source image pixels will be retained
+//                     in the undistorted image)
+//   newImgSize:       Image size after rectification. By default it will be set
+//   to imageSize.
+//  RETURNS:           The output new camera matrix.
 ///
-template<typename CAMERA_T>
+template <typename CAMERA_T>
 Eigen::Matrix3d getOptimalNewCameraMatrix(
-    boost::shared_ptr<CAMERA_T> camera_geometry, cv::Size imgSize, double alpha,
+    std::shared_ptr<CAMERA_T> camera_geometry, cv::Size imgSize, double alpha,
     cv::Size newImgSize) {
-
   cv::Rect_<float> inner, outer;
   newImgSize = newImgSize.width * newImgSize.height != 0 ? newImgSize : imgSize;
 
@@ -118,28 +116,26 @@ Eigen::Matrix3d getOptimalNewCameraMatrix(
 }
 
 ///
-//Returns the new camera matrix based on the free scaling parameter.
+// Returns the new camera matrix based on the free scaling parameter.
 //
-// INPUT:
-//  camera_geometry:  Aslam camera geometry (distortion and intrinsics used)
-//  R:                Optional rectification transformation in the object space (3x3 matrix)
-//  newCameraMatrix:  New camera matrix
-//  size:             Undistorted image size.
-//  m1type:           Type of the first output map that can be CV_32FC1 or CV_16SC2
+//  INPUT:
+//   camera_geometry:  Aslam camera geometry (distortion and intrinsics used)
+//   R:                Optional rectification transformation in the object space
+//   (3x3 matrix) newCameraMatrix:  New camera matrix size: Undistorted image
+//   size. m1type:           Type of the first output map that can be CV_32FC1
+//   or CV_16SC2
 //
-// OUTPUT: (maps can be used with cv::remap)
-//  _map1:            The first output map.
-//  _map2:            The second output map.
+//  OUTPUT: (maps can be used with cv::remap)
+//   _map1:            The first output map.
+//   _map2:            The second output map.
 ///
-template<typename CAMERA_T>
-void initUndistortRectifyMap(boost::shared_ptr<CAMERA_T> camera_geometry,
-                             const Eigen::Matrix3d &_R,
-                             const Eigen::Matrix3d &_newCameraMatrix, Size size,
+template <typename CAMERA_T>
+void initUndistortRectifyMap(std::shared_ptr<CAMERA_T> camera_geometry,
+                             const Eigen::Matrix3d& _R,
+                             const Eigen::Matrix3d& _newCameraMatrix, Size size,
                              int m1type, OutputArray _map1, OutputArray _map2) {
-
-  //prepare the outputs data structures
-  if (m1type <= 0)
-    m1type = CV_16SC2;
+  // prepare the outputs data structures
+  if (m1type <= 0) m1type = CV_16SC2;
   CV_Assert(m1type == CV_16SC2 || m1type == CV_32FC1 || m1type == CV_32FC2);
   _map1.create(size, m1type);
   Mat map1 = _map1.getMat(), map2;
@@ -149,54 +145,55 @@ void initUndistortRectifyMap(boost::shared_ptr<CAMERA_T> camera_geometry,
   } else
     _map2.release();
 
-  //invert
+  // invert
   Eigen::Matrix3d invR = (_newCameraMatrix * _R).inverse();
 
   for (int i = 0; i < size.height; i++) {
-    float* m1f = (float*) (map1.data + map1.step * i);
-    float* m2f = (float*) (map2.data + map2.step * i);
-    short* m1 = (short*) m1f;
-    ushort* m2 = (ushort*) m2f;
+    float* m1f = (float*)(map1.data + map1.step * i);
+    float* m2f = (float*)(map2.data + map2.step * i);
+    short* m1 = (short*)m1f;
+    ushort* m2 = (ushort*)m2f;
 
-    double _x = i * invR(0, 1) + invR(0, 2),  //TODO maybe the is ordering wrong...
-    _y = i * invR(1, 1) + invR(1, 2), _w = i * invR(2, 1) + invR(2, 2);
+    double _x = i * invR(0, 1) +
+                invR(0, 2),  // TODO maybe the is ordering wrong...
+        _y = i * invR(1, 1) + invR(1, 2), _w = i * invR(2, 1) + invR(2, 2);
 
     for (int j = 0; j < size.width;
-        j++, _x += invR(0, 0), _y += invR(1, 0), _w += invR(2, 0)) {
+         j++, _x += invR(0, 0), _y += invR(1, 0), _w += invR(2, 0)) {
       double w = 1. / _w, x = _x * w, y = _y * w;
 
-      //apply original distortion
+      // apply original distortion
       Eigen::Vector2d point(x, y);
       camera_geometry->projection().distortion().distort(point);
       double u_norm = point[0], v_norm = point[1];
 
-      //apply original camera matrix
-      //get the camera matrix from the aslam camera
-      Eigen::Matrix3d cameraMatrix = camera_geometry->projection()
-          .getCameraMatrix();
+      // apply original camera matrix
+      // get the camera matrix from the aslam camera
+      Eigen::Matrix3d cameraMatrix =
+          camera_geometry->projection().getCameraMatrix();
       double u0 = cameraMatrix(0, 2), v0 = cameraMatrix(1, 2);
       double fx = cameraMatrix(0, 0), fy = cameraMatrix(1, 1);
 
       double u = fx * u_norm + u0;
       double v = fy * v_norm + v0;
 
-      //store in output format
+      // store in output format
       if (m1type == CV_16SC2) {
         int iu = saturate_cast<int>(u * INTER_TAB_SIZE);
         int iv = saturate_cast<int>(v * INTER_TAB_SIZE);
-        m1[j * 2] = (short) (iu >> INTER_BITS);
-        m1[j * 2 + 1] = (short) (iv >> INTER_BITS);
-        m2[j] = (ushort) ((iv & (INTER_TAB_SIZE - 1)) * INTER_TAB_SIZE
-            + (iu & (INTER_TAB_SIZE - 1)));
+        m1[j * 2] = (short)(iu >> INTER_BITS);
+        m1[j * 2 + 1] = (short)(iv >> INTER_BITS);
+        m2[j] = (ushort)((iv & (INTER_TAB_SIZE - 1)) * INTER_TAB_SIZE +
+                         (iu & (INTER_TAB_SIZE - 1)));
       } else if (m1type == CV_32FC1) {
-        m1f[j] = (float) u;
-        m2f[j] = (float) v;
+        m1f[j] = (float)u;
+        m2f[j] = (float)v;
       } else {
-        m1f[j * 2] = (float) u;
-        m1f[j * 2 + 1] = (float) v;
+        m1f[j * 2] = (float)u;
+        m1f[j * 2 + 1] = (float)v;
       }
     }
   }
 }
 
-}
+}  // namespace aslamcv_helper

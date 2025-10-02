@@ -1,7 +1,7 @@
 #include "IccDatasetReaders.hpp"
 
 #include <algorithm>
-#include <aslam/cv/Time.hpp>
+#include <aslam/Time.hpp>
 #include <fstream>
 #include <iostream>
 #include <sstream>

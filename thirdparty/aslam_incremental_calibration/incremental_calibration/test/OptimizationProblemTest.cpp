@@ -20,51 +20,48 @@
     \brief This file tests the OptimizationProblem class.
   */
 
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-
 #include <gtest/gtest.h>
 
+#include <aslam/Exceptions.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/JacobianContainer.hpp>
+#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "aslam/calibration/core/OptimizationProblem.h"
 #include "aslam/calibration/data-structures/VectorDesignVariable.h"
-#include <aslam/Exceptions.hpp>
-#include "aslam/calibration/exceptions/OutOfBoundException.h"
 #include "aslam/calibration/exceptions/InvalidOperationException.h"
+#include "aslam/calibration/exceptions/OutOfBoundException.h"
 
-class DummyErrorTerm :
-  public aslam::backend::ErrorTermFs<3> {
-public:
+class DummyErrorTerm : public aslam::backend::ErrorTermFs<3> {
+ public:
   DummyErrorTerm() = default;
   DummyErrorTerm(const DummyErrorTerm& other) = delete;
-  DummyErrorTerm& operator = (const DummyErrorTerm& other) = delete;
+  DummyErrorTerm& operator=(const DummyErrorTerm& other) = delete;
   ~DummyErrorTerm() {};
-protected:
-  double evaluateErrorImplementation() {
-    return 0;
-  };
+
+ protected:
+  double evaluateErrorImplementation() { return 0; };
   void evaluateJacobiansImplementation(
-    aslam::backend::JacobianContainer& J) const {};
+      aslam::backend::JacobianContainer& J) const {};
 };
 
 using namespace aslam::calibration;
 
 TEST(AslamCalibrationTestSuite, testOptimizationProblem) {
   OptimizationProblem problem;
-  auto dv1 = boost::make_shared<VectorDesignVariable<2> >();
+  auto dv1 = std::make_shared<VectorDesignVariable<2> >();
   dv1->setActive(true);
-  auto dv2 = boost::make_shared<VectorDesignVariable<3> >();
+  auto dv2 = std::make_shared<VectorDesignVariable<3> >();
   dv2->setActive(true);
-  auto dv3 = boost::make_shared<VectorDesignVariable<4> >();
+  auto dv3 = std::make_shared<VectorDesignVariable<4> >();
   dv3->setActive(true);
-  auto dv4 = boost::make_shared<VectorDesignVariable<4> >();
+  auto dv4 = std::make_shared<VectorDesignVariable<4> >();
   dv4->setActive(true);
-  auto et1 = boost::make_shared<DummyErrorTerm>();
-  auto et2 = boost::make_shared<DummyErrorTerm>();
-  auto et3 = boost::make_shared<DummyErrorTerm>();
-  auto et4 = boost::make_shared<DummyErrorTerm>();
+  auto et1 = std::make_shared<DummyErrorTerm>();
+  auto et2 = std::make_shared<DummyErrorTerm>();
+  auto et3 = std::make_shared<DummyErrorTerm>();
+  auto et4 = std::make_shared<DummyErrorTerm>();
   problem.addDesignVariable(dv1, 0);
   problem.addDesignVariable(dv2, 1);
   problem.addDesignVariable(dv3, 1);
@@ -78,15 +75,15 @@ TEST(AslamCalibrationTestSuite, testOptimizationProblem) {
   ASSERT_THROW(problem.addDesignVariable(dv1), InvalidOperationException);
   ASSERT_EQ(problem.getNumGroups(), 2);
   ASSERT_EQ(problem.getDesignVariablesGroup(1),
-    OptimizationProblem::DesignVariablesSP({dv2, dv3}));
+            OptimizationProblem::DesignVariablesSP({dv2, dv3}));
   ASSERT_EQ(problem.getDesignVariablesGroup(0),
-    OptimizationProblem::DesignVariablesSP({dv1}));
+            OptimizationProblem::DesignVariablesSP({dv1}));
   ASSERT_THROW(problem.getDesignVariablesGroup(2), OutOfBoundException<size_t>);
   problem.setGroupsOrdering({1, 0});
   ASSERT_EQ(problem.getGroupsOrdering(), std::vector<size_t>({1, 0}));
   ASSERT_THROW(problem.setGroupsOrdering({2, 0}), OutOfBoundException<size_t>);
   ASSERT_THROW(problem.setGroupsOrdering({2, 0, 3}),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   ASSERT_THROW(problem.setGroupsOrdering({0, 0}), OutOfBoundException<size_t>);
   ASSERT_EQ(problem.getGroupId(dv1.get()), 0);
   ASSERT_EQ(problem.getGroupId(dv2.get()), 1);
@@ -100,7 +97,7 @@ TEST(AslamCalibrationTestSuite, testOptimizationProblem) {
   problem.permuteDesignVariables({1, 0}, 1);
   ASSERT_EQ(problem.designVariable(0), dv3.get());
   ASSERT_THROW(problem.permuteDesignVariables({1, 0}, 2),
-    OutOfBoundException<size_t>);
+               OutOfBoundException<size_t>);
   ASSERT_EQ(problem.getGroupDim(0), 2);
   ASSERT_EQ(problem.getGroupDim(1), 7);
   ASSERT_TRUE(problem.isGroupInProblem(0));

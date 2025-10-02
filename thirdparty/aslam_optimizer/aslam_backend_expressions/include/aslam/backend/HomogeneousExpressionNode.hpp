@@ -1,113 +1,126 @@
 #ifndef ASLAM_BACKEND_HOMOGENEOUS_EXPRESSION_NODE_HPP
 #define ASLAM_BACKEND_HOMOGENEOUS_EXPRESSION_NODE_HPP
 
-#include <aslam/backend/JacobianContainer.hpp>
-#include "TransformationExpressionNode.hpp"
-#include <boost/shared_ptr.hpp>
 #include <Eigen/Core>
-#include "EuclideanExpression.hpp"
+#include <aslam/backend/JacobianContainer.hpp>
+#include <memory>
 
+#include "EuclideanExpression.hpp"
+#include "TransformationExpressionNode.hpp"
 
 namespace aslam {
-  namespace backend {
-    class TransformationExpressionNode;
-        
-    /**
-     * \class HomogeneousExpressionNode
-     * \brief The superclass of all classes representing homogeneous points.
-     */
-    class HomogeneousExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+namespace backend {
+class TransformationExpressionNode;
 
-      HomogeneousExpressionNode();
-      virtual ~HomogeneousExpressionNode();
+/**
+ * \class HomogeneousExpressionNode
+ * \brief The superclass of all classes representing homogeneous points.
+ */
+class HomogeneousExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-      /// \brief Evaluate the homogeneous matrix.
-      Eigen::Vector4d toHomogeneous() const;
-      
-      /// \brief Evaluate the Jacobians
-      void evaluateJacobians(JacobianContainer & outJacobians) const;
-    
-      /// \brief Evaluate the Jacobians and apply the chain rule.
-      void evaluateJacobians(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariables(DesignVariable::set_t & designVariables) const;
-    protected:        
-      // These functions must be implemented by child classes.
-      virtual Eigen::Vector4d toHomogeneousImplementation() const = 0;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const = 0;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const = 0;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const = 0;
+  HomogeneousExpressionNode();
+  virtual ~HomogeneousExpressionNode();
 
-    };
+  /// \brief Evaluate the homogeneous matrix.
+  Eigen::Vector4d toHomogeneous() const;
 
+  /// \brief Evaluate the Jacobians
+  void evaluateJacobians(JacobianContainer& outJacobians) const;
 
-    /**
-     * \class HomogeneousExpressionNodeMultiply
-     *
-     * \brief A class representing the transformation of a homogeneous point
-     * 
-     */
-    class HomogeneousExpressionNodeMultiply : public HomogeneousExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  /// \brief Evaluate the Jacobians and apply the chain rule.
+  void evaluateJacobians(JacobianContainer& outJacobians,
+                         const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariables(DesignVariable::set_t& designVariables) const;
 
-      HomogeneousExpressionNodeMultiply(boost::shared_ptr<TransformationExpressionNode> lhs, 
-				     boost::shared_ptr<HomogeneousExpressionNode> rhs);
-      virtual ~HomogeneousExpressionNodeMultiply();
+ protected:
+  // These functions must be implemented by child classes.
+  virtual Eigen::Vector4d toHomogeneousImplementation() const = 0;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const = 0;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const = 0;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const = 0;
+};
 
-    private:
-      virtual Eigen::Vector4d toHomogeneousImplementation() const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+/**
+ * \class HomogeneousExpressionNodeMultiply
+ *
+ * \brief A class representing the transformation of a homogeneous point
+ *
+ */
+class HomogeneousExpressionNodeMultiply : public HomogeneousExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-      boost::shared_ptr<TransformationExpressionNode> _lhs;
-      mutable Eigen::Matrix4d _T_lhs;
-      boost::shared_ptr<HomogeneousExpressionNode> _rhs;
-      mutable Eigen::Vector4d _p_rhs;
-    };
+  HomogeneousExpressionNodeMultiply(
+      std::shared_ptr<TransformationExpressionNode> lhs,
+      std::shared_ptr<HomogeneousExpressionNode> rhs);
+  virtual ~HomogeneousExpressionNodeMultiply();
 
+ private:
+  virtual Eigen::Vector4d toHomogeneousImplementation() const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
-    class HomogeneousExpressionNodeConstant : public HomogeneousExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  std::shared_ptr<TransformationExpressionNode> _lhs;
+  mutable Eigen::Matrix4d _T_lhs;
+  std::shared_ptr<HomogeneousExpressionNode> _rhs;
+  mutable Eigen::Vector4d _p_rhs;
+};
 
-      HomogeneousExpressionNodeConstant(const Eigen::Vector4d & p);
-      virtual ~HomogeneousExpressionNodeConstant();
+class HomogeneousExpressionNodeConstant : public HomogeneousExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-        void set(const Eigen::Vector4d & p){ _p = p; }
-    private:
-      virtual Eigen::Vector4d toHomogeneousImplementation() const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+  HomogeneousExpressionNodeConstant(const Eigen::Vector4d& p);
+  virtual ~HomogeneousExpressionNodeConstant();
 
-      Eigen::Vector4d _p;
-    };
+  void set(const Eigen::Vector4d& p) { _p = p; }
 
-  class HomogeneousExpressionNodeEuclidean : public HomogeneousExpressionNode
-    {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+ private:
+  virtual Eigen::Vector4d toHomogeneousImplementation() const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
-      HomogeneousExpressionNodeEuclidean( boost::shared_ptr<EuclideanExpressionNode> p);
-      virtual ~HomogeneousExpressionNodeEuclidean();
+  Eigen::Vector4d _p;
+};
 
-    private:
-      virtual Eigen::Vector4d toHomogeneousImplementation() const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians) const;
-      virtual void evaluateJacobiansImplementation(JacobianContainer & outJacobians, const Eigen::MatrixXd & applyChainRule) const;
-      virtual void getDesignVariablesImplementation(DesignVariable::set_t & designVariables) const;
+class HomogeneousExpressionNodeEuclidean : public HomogeneousExpressionNode {
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-      boost::shared_ptr<EuclideanExpressionNode> _p;
-    };
+  HomogeneousExpressionNodeEuclidean(
+      std::shared_ptr<EuclideanExpressionNode> p);
+  virtual ~HomogeneousExpressionNodeEuclidean();
 
+ private:
+  virtual Eigen::Vector4d toHomogeneousImplementation() const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians) const;
+  virtual void evaluateJacobiansImplementation(
+      JacobianContainer& outJacobians,
+      const Eigen::MatrixXd& applyChainRule) const;
+  virtual void getDesignVariablesImplementation(
+      DesignVariable::set_t& designVariables) const;
 
-  } // namespace backend
-} // namespace aslam
+  std::shared_ptr<EuclideanExpressionNode> _p;
+};
+
+}  // namespace backend
+}  // namespace aslam
 
 #endif /* ASLAM_BACKEND_HOMOGENEOUS_EXPRESSION_NODE_HPP */

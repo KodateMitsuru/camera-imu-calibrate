@@ -8,7 +8,11 @@
 #include <vector>
 
 // ASLAM includes
+#include <aslam/Frame.hpp>
+#include <aslam/Keypoint.hpp>
+#include <aslam/Time.hpp>
 #include <aslam/backend/DesignVariable.hpp>
+#include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/EuclideanDirection.hpp>
 #include <aslam/backend/EuclideanPoint.hpp>
 #include <aslam/backend/MEstimatorPolicies.hpp>
@@ -18,11 +22,12 @@
 #include <aslam/backend/Optimizer2Options.hpp>
 #include <aslam/backend/RotationQuaternion.hpp>
 #include <aslam/backend/Scalar.hpp>
-#include <aslam/cameras/CameraGeometry.hpp>
-#include <aslam/cameras/Frame.hpp>
-#include <aslam/cameras/Keypoint.hpp>
-#include <aslam/cv/GridCalibrationTarget.hpp>
-#include <aslam/cv/GridDetector.hpp>
+#include <aslam/backend/TransformationBasic.hpp>
+#include <aslam/backend/TransformationExpression.hpp>
+#include <aslam/cameras/CameraGeometryBase.hpp>
+#include <aslam/cameras/GridCalibrationTargetBase.hpp>
+#include <aslam/cameras/GridCalibrationTargetObservation.hpp>
+#include <aslam/cameras/GridDetector.hpp>
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
 #include <bsplines/BSpline.hpp>
@@ -32,6 +37,7 @@
 #include <sm/timing/Timer.hpp>
 
 #include "IccDatasetReaders.hpp"
+#include "KalibrCommon.hpp"
 
 // Forward declarations
 class IccCalibrator;
@@ -106,14 +112,15 @@ class IccCamera {
   std::shared_ptr<kalibr_common::AslamCamera> camera_;
 
   // Calibration target
-  std::shared_ptr<aslam::cv::GridDetector> detector_;
-  std::vector<aslam::cv::TargetObservation> targetObservations_;
+  std::shared_ptr<aslam::cameras::GridDetector> detector_;
+  std::vector<aslam::cameras::GridCalibrationTargetObservation>
+      targetObservations_;
 
   // Gravity estimate
   Eigen::Vector3d gravity_w_;
 
   // Design variables
-  std::shared_ptr<aslam::backend::TransformationDv> T_c_b_Dv_;
+  std::shared_ptr<aslam::backend::TransformationBasic> T_c_b_Dv_;
   std::shared_ptr<aslam::backend::Scalar> cameraTimeToImuTimeDv_;
 
   // Error terms
@@ -173,14 +180,14 @@ class IccCameraChain {
   kalibr_common::ChainParameters chainConfig;
 
  private:
-  aslam::cv::Time timeStart_;
-  aslam::cv::Time timeEnd_;
+  aslam::Time timeStart_;
+  aslam::Time timeEnd_;
 };
 
 // IMU Measurement Class
 class ImuMeasurement {
  public:
-  ImuMeasurement(const aslam::cv::Time& stamp, const Eigen::Vector3d& omega,
+  ImuMeasurement(const aslam::Time& stamp, const Eigen::Vector3d& omega,
                  const Eigen::Vector3d& alpha, const Eigen::Matrix3d& Rgyro,
                  const Eigen::Matrix3d& Raccel);
 
@@ -190,7 +197,7 @@ class ImuMeasurement {
   Eigen::Matrix3d omegaInvR;
   Eigen::Matrix3d alphaR;
   Eigen::Matrix3d alphaInvR;
-  aslam::cv::Time stamp;
+  aslam::Time stamp;
 };
 
 // Base IMU Class
@@ -293,8 +300,8 @@ class IccImu {
   // Design variables
   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> gyroBiasDv_;
   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> accelBiasDv_;
-  std::shared_ptr<aslam::backend::RotationQuaternionDv> q_i_b_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPointDv> r_b_Dv_;
+  std::shared_ptr<aslam::backend::RotationQuaternion> q_i_b_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> r_b_Dv_;
 
   // Error terms
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors_;
@@ -339,10 +346,10 @@ class IccScaledMisalignedImu : public IccImu {
 
  protected:
   // Additional design variables for scaled misaligned model
-  std::shared_ptr<aslam::backend::RotationQuaternionDv> q_gyro_i_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> M_accel_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> M_gyro_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> M_accel_gyro_Dv_;
+  std::shared_ptr<aslam::backend::RotationQuaternion> q_gyro_i_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_gyro_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_gyro_Dv_;
 };
 
 // Scaled Misaligned Size Effect IMU Class
@@ -377,12 +384,12 @@ class IccScaledMisalignedSizeEffectImu : public IccScaledMisalignedImu {
 
  protected:
   // Additional design variables for size effect model
-  std::shared_ptr<aslam::backend::EuclideanPointDv> rx_i_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPointDv> ry_i_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPointDv> rz_i_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> Ix_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> Iy_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasicDv> Iz_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> rx_i_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> ry_i_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> rz_i_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Ix_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Iy_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Iz_Dv_;
 };
 
 #endif  // ICCSENSORS_HPP
