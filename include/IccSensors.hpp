@@ -1,395 +1,269 @@
-#ifndef ICCSENSORS_HPP
-#define ICCSENSORS_HPP
+#ifndef ICC_SENSORS_HPP
+#define ICC_SENSORS_HPP
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
+#include <aslam/backend/DesignVariable.hpp>
+#include <aslam/backend/OptimizationProblem.hpp>
+#include <aslam/cameras/CameraGeometryBase.hpp>
+#include <aslam/cameras/GridCalibrationTargetObservation.hpp>
+#include <aslam/cameras/GridDetector.hpp>
+#include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
+#include <bsplines/BSplinePose.hpp>
+#include <kalibr_backend/MatrixDesignVariable.hpp>
+#include <kalibr_backend/ScalarDesignVariable.hpp>
+#include <kalibr_backend/TransformationDesignVariable.hpp>
+#include <kalibr_common/ConfigReader.hpp>
+#include <kalibr_common/ImageDatasetReader.hpp>
+#include <kalibr_common/ImuDatasetReader.hpp>
 #include <memory>
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
 #include <string>
 #include <vector>
 
-// ASLAM includes
-#include <aslam/Frame.hpp>
-#include <aslam/Keypoint.hpp>
-#include <aslam/Time.hpp>
-#include <aslam/backend/DesignVariable.hpp>
-#include <aslam/backend/ErrorTerm.hpp>
-#include <aslam/backend/EuclideanDirection.hpp>
-#include <aslam/backend/EuclideanPoint.hpp>
-#include <aslam/backend/MEstimatorPolicies.hpp>
-#include <aslam/backend/MatrixBasic.hpp>
-#include <aslam/backend/OptimizationProblem.hpp>
-#include <aslam/backend/Optimizer2.hpp>
-#include <aslam/backend/Optimizer2Options.hpp>
-#include <aslam/backend/RotationQuaternion.hpp>
-#include <aslam/backend/Scalar.hpp>
-#include <aslam/backend/TransformationBasic.hpp>
-#include <aslam/backend/TransformationExpression.hpp>
-#include <aslam/cameras/CameraGeometryBase.hpp>
-#include <aslam/cameras/GridCalibrationTargetBase.hpp>
-#include <aslam/cameras/GridCalibrationTargetObservation.hpp>
-#include <aslam/cameras/GridDetector.hpp>
-#include <aslam/splines/BSplinePoseDesignVariable.hpp>
-#include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
-#include <bsplines/BSpline.hpp>
-#include <bsplines/BSplinePose.hpp>
-#include <sm/kinematics/Transformation.hpp>
-#include <sm/logging.hpp>
-#include <sm/timing/Timer.hpp>
+namespace kalibr {
 
-#include "IccDatasetReaders.hpp"
-#include "KalibrCommon.hpp"
-
-// Forward declarations
-class IccCalibrator;
-
-// Constants
-constexpr int CALIBRATION_GROUP_ID = 0;
-constexpr int HELPER_GROUP_ID = 1;
-
-// Dataset readers initialization functions
-std::shared_ptr<CsvImageDatasetReader> initCameraDataset(
-    const std::string& csvPath, const std::string& imageFolder,
-    const std::pair<double, double>& from_to, double freq);
-
-std::shared_ptr<CsvImuDatasetReader> initImuDataset(
-    const std::string& csvPath,
-    const std::pair<double, double>& from_to = {0.0, 0.0});
-
-// Mono Camera Class
+/**
+ * @brief Single camera for calibration
+ */
 class IccCamera {
  public:
-  IccCamera(const kalibr_common::CameraParameters& camConfig,
-            const kalibr_common::TargetParameters& targetConfig,
-            std::shared_ptr<CsvImageDatasetReader> dataset,
-            double reprojectionSigma = 1.0, bool showCorners = true,
-            bool showReproj = true, bool showOneStep = false);
+  IccCamera(const CameraParameters& camConfig,
+            const CalibrationTargetParameters& targetConfig,
+            const ImageDatasetReader& dataset, double reprojectionSigma = 1.0,
+            bool showCorners = true, bool showReproj = true,
+            bool showOneStep = false);
 
-  ~IccCamera();
+  /**
+   * @brief Setup calibration target
+   */
+  void setupCalibrationTarget(const CalibrationTargetParameters& targetConfig,
+                              bool showExtraction = false,
+                              bool showReproj = false,
+                              bool imageStepping = false);
 
-  // Setup calibration target
-  void setupCalibrationTarget(
-      const kalibr_common::TargetParameters& targetConfig,
-      bool showExtraction = false, bool showReproj = false,
-      bool imageStepping = false);
+  /**
+   * @brief Find orientation prior from camera to IMU
+   */
+  void findOrientationPriorCameraToImu(const class IccImu& imu);
 
-  // Find orientation prior between camera and IMU
-  void findOrientationPriorCameraToImu(class IccImu& imu);
-
-  // Get estimated gravity vector
+  /**
+   * @brief Get estimated gravity vector
+   */
   Eigen::Vector3d getEstimatedGravity() const;
 
-  // Find timeshift between camera and IMU
-  void findTimeshiftCameraImuPrior(class IccImu& imu, bool verbose = false);
+  /**
+   * @brief Find time shift between camera and IMU using cross-correlation
+   */
+  double findTimeshiftCameraImuPrior(const class IccImu& imu,
+                                     bool verbose = false);
 
-  // Initialize pose spline from camera observations
-  std::shared_ptr<bsplines::BSplinePose> initPoseSplineFromCamera(
+  /**
+   * @brief Initialize pose spline from camera poses
+   */
+  bsplines::BSplinePose initPoseSplineFromCamera(
       int splineOrder = 6, int poseKnotsPerSecond = 100,
       double timeOffsetPadding = 0.02);
 
-  // Add design variables to optimization problem
+  /**
+   * @brief Add design variables to optimization problem
+   */
   void addDesignVariables(aslam::backend::OptimizationProblem& problem,
-                          bool noExtrinsics = true,
                           bool noTimeCalibration = true,
-                          int baselinedv_group_id = HELPER_GROUP_ID);
+                          bool estimateExtrinsics = false);
 
-  // Add camera error terms
+  /**
+   * @brief Add camera reprojection error terms
+   */
   void addCameraErrorTerms(
       aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      const aslam::backend::TransformationExpression& T_cN_b,
-      double blakeZissermanDf = 0.0, double timeOffsetPadding = 0.0);
+      const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>& poseDv,
+      bool useBlakeZissermanMest = false);
+
+  // Getters
+  const std::vector<aslam::cameras::GridCalibrationTargetObservation>&
+  getObservations() const {
+    return observations_;
+  }
+  const ImageDatasetReader& getDataset() const { return dataset_; }
+  std::shared_ptr<AslamCamera> getCamera() const { return camera_; }
+  std::shared_ptr<aslam::cameras::GridDetector> getDetector() const {
+    return detector_;
+  }
+  sm::kinematics::Transformation getExtrinsic() const { return T_extrinsic_; }
+  double getTimeshiftPrior() const { return timeshiftCamToImuPrior_; }
 
  private:
-  // Dataset and configuration
-  std::shared_ptr<CsvImageDatasetReader> dataset_;
-  kalibr_common::CameraParameters camConfig_;
-  kalibr_common::TargetParameters targetConfig_;
+  ImageDatasetReader dataset_;
+  std::shared_ptr<AslamCamera> camera_;
+  std::shared_ptr<aslam::cameras::GridDetector> detector_;
+  std::vector<aslam::cameras::GridCalibrationTargetObservation> observations_;
 
-  // Camera setup
+  // Configuration
+  double reprojectionSigma_;
   double cornerUncertainty_;
+  bool showCorners_;
+  bool showReproj_;
+  bool showOneStep_;
+
+  // Calibration parameters
   sm::kinematics::Transformation T_extrinsic_;
   double timeshiftCamToImuPrior_;
-  std::shared_ptr<kalibr_common::AslamCamera> camera_;
-
-  // Calibration target
-  std::shared_ptr<aslam::cameras::GridDetector> detector_;
-  std::vector<aslam::cameras::GridCalibrationTargetObservation>
-      targetObservations_;
-
-  // Gravity estimate
   Eigen::Vector3d gravity_w_;
 
-  // Design variables
-  std::shared_ptr<aslam::backend::TransformationBasic> T_c_b_Dv_;
-  std::shared_ptr<aslam::backend::Scalar> cameraTimeToImuTimeDv_;
+  // Design variables (set by addDesignVariables)
+  std::shared_ptr<aslam::backend::TransformationDesignVariable> dv_T_c_b_;
+  std::shared_ptr<aslam::backend::ScalarDesignVariable> dv_time_offset_;
 
-  // Error terms
+  // Reprojection errors (set by addCameraErrorTerms)
   std::vector<std::vector<std::shared_ptr<aslam::backend::ErrorTerm>>>
       allReprojectionErrors_;
 };
 
-// Camera Chain Class
+/**
+ * @brief Camera chain (multiple cameras)
+ */
 class IccCameraChain {
  public:
-  IccCameraChain(const kalibr_common::ChainParameters& chainConfig,
-                 const kalibr_common::TargetParameters& targetConfig,
-                 const kalibr_common::ParsedArguments& parsed);
+  IccCameraChain(const std::vector<CameraParameters>& camConfigs,
+                 const CalibrationTargetParameters& targetConfig,
+                 const std::vector<ImageDatasetReader>& datasets);
 
-  ~IccCameraChain();
-
-  // Initialize baselines between cameras
-  void initializeBaselines();
-
-  // Initialize pose spline from camera chain
-  std::shared_ptr<bsplines::BSplinePose> initializePoseSplineFromCameraChain(
-      int splineOrder = 6, int poseKnotsPerSecond = 100,
-      double timeOffsetPadding = 0.02);
-
-  // Find camera timespan
-  void findCameraTimespan();
-
-  // Find orientation prior between camera chain and IMU
-  void findOrientationPriorCameraChainToImu(class IccImu& imu);
-
-  // Get estimated gravity
-  Eigen::Vector3d getEstimatedGravity() const;
-
-  // Get baseline transformation
-  std::pair<sm::kinematics::Transformation, double> getResultBaseline(
-      int fromCamANr, int toCamBNr);
-
-  // Get transformation from IMU to camera
-  sm::kinematics::Transformation getResultTrafoImuToCam(int camNr);
-
-  // Get time shift for camera
-  double getResultTimeShift(int camNr);
-
-  // Add design variables
+  /**
+   * @brief Add design variables to optimization problem
+   */
   void addDesignVariables(aslam::backend::OptimizationProblem& problem,
-                          bool noTimeCalibration = true,
-                          bool noChainExtrinsics = true);
+                          bool noTimeCalibration, bool noChainExtrinsics);
 
-  // Add camera chain error terms
-  void addCameraChainErrorTerms(
-      aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      double blakeZissermanDf = -1, double timeOffsetPadding = 0.0);
+  /**
+   * @brief Initialize from camera chain
+   */
+  void initFromCameraChain();
 
- public:
-  std::vector<std::shared_ptr<IccCamera>> camList;
-  kalibr_common::ChainParameters chainConfig;
+  // Getters
+  const std::vector<std::shared_ptr<IccCamera>>& getCamList() const {
+    return camList_;
+  }
+  std::vector<std::shared_ptr<IccCamera>>& getCamList() { return camList_; }
+  size_t numCameras() const { return camList_.size(); }
 
  private:
-  aslam::Time timeStart_;
-  aslam::Time timeEnd_;
+  std::vector<std::shared_ptr<IccCamera>> camList_;
+  std::vector<std::shared_ptr<aslam::backend::TransformationDesignVariable>>
+      transformations_;
+  std::vector<std::shared_ptr<aslam::backend::ScalarDesignVariable>>
+      timeOffsets_;
 };
 
-// IMU Measurement Class
-class ImuMeasurement {
- public:
-  ImuMeasurement(const aslam::Time& stamp, const Eigen::Vector3d& omega,
-                 const Eigen::Vector3d& alpha, const Eigen::Matrix3d& Rgyro,
-                 const Eigen::Matrix3d& Raccel);
-
-  Eigen::Vector3d omega;
-  Eigen::Vector3d alpha;
-  Eigen::Matrix3d omegaR;
-  Eigen::Matrix3d omegaInvR;
-  Eigen::Matrix3d alphaR;
-  Eigen::Matrix3d alphaInvR;
-  aslam::Time stamp;
-};
-
-// Base IMU Class
+/**
+ * @brief IMU sensor for calibration
+ */
 class IccImu {
  public:
-  // Nested ImuParameters class
-  class ImuParameters : public kalibr_common::ImuParameters {
-   public:
-    ImuParameters(const kalibr_common::ImuConfig& imuConfig, int imuNr);
+  IccImu(const ImuParameters& imuConfig, const ImuDatasetReader& dataset);
 
-    void setImuPose(const Eigen::Matrix4d& T_i_b);
-    void setTimeOffset(double time_offset);
-    void printDetails(std::ostream& dest = std::cout) const;
+  virtual ~IccImu() = default;
 
-   private:
-    std::string formatIndented(const std::string& indent,
-                               const Eigen::MatrixXd& array) const;
-    int imuNr_;
-  };
+  /**
+   * @brief Add design variables to optimization problem
+   */
+  virtual void addDesignVariables(aslam::backend::OptimizationProblem& problem,
+                                  const bsplines::BSplinePose& poseSpline);
 
-  IccImu(const kalibr_common::ImuConfig& imuConfig,
-         const kalibr_common::ParsedArguments& parsed,
-         bool isReferenceImu = true, bool estimateTimedelay = true,
-         int imuNr = 0);
+  /**
+   * @brief Add error terms to optimization problem
+   */
+  virtual void addErrorTerms(
+      aslam::backend::OptimizationProblem& problem,
+      const aslam::splines::BSplinePoseDesignVariable& poseDv,
+      const aslam::backend::EuclideanExpression& gravityExpression,
+      double gyroNoiseScale = 1.0, double accelNoiseScale = 1.0,
+      double huberGyro = -1.0, double huberAccel = -1.0);
 
-  virtual ~IccImu();
+  /**
+   * @brief Initialize bias splines
+   */
+  void initBiasSplines(const bsplines::BSplinePose& poseSpline,
+                       int biasKnotsPerSecond, int splineOrder);
 
-  // Get IMU configuration
-  std::shared_ptr<ImuParameters> getImuConfig();
+  // Getters
+  const ImuDatasetReader& getDataset() const { return dataset_; }
+  ImuDatasetReader& getDataset() { return dataset_; }
+  const std::vector<ImuMeasurement>& getImuData() const { return imuData_; }
+  double getTimeOffset() const { return timeOffset_; }
+  void setTimeOffset(double offset) { timeOffset_ = offset; }
 
-  // Update IMU configuration
-  virtual void updateImuConfig();
-
-  // Load IMU data from dataset
-  void loadImuData();
-
-  // Set the dataset (must be called before loadImuData)
-  void setDataset(std::shared_ptr<CsvImuDatasetReader> dataset) {
-    dataset_ = dataset;
+  std::shared_ptr<aslam::backend::TransformationDesignVariable>
+  getTransformationDv() const {
+    return T_i_b_Dv_;
   }
 
-  // Add design variables
-  virtual void addDesignVariables(aslam::backend::OptimizationProblem& problem);
-
-  // Add accelerometer error terms
-  virtual void addAccelerometerErrorTerms(
-      aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      const aslam::backend::EuclideanExpression& g_w, double mSigma = 0.0,
-      double accelNoiseScale = 1.0);
-
-  // Add gyroscope error terms
-  virtual void addGyroscopeErrorTerms(
-      aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      double mSigma = 0.0, double gyroNoiseScale = 1.0,
-      const aslam::backend::EuclideanExpression* g_w = nullptr);
-
-  // Initialize bias splines
-  void initBiasSplines(std::shared_ptr<bsplines::BSplinePose> poseSpline,
-                       int splineOrder, int biasKnotsPerSecond);
-
-  // Add bias motion terms
-  void addBiasMotionTerms(aslam::backend::OptimizationProblem& problem);
-
-  // Get transformation from body to IMU
-  sm::kinematics::Transformation getTransformationFromBodyToImu() const;
-
-  // Find orientation prior relative to reference IMU
-  void findOrientationPrior(const IccImu& referenceImu);
-
  protected:
-  // Dataset and configuration
-  std::shared_ptr<CsvImuDatasetReader> dataset_;
-  std::shared_ptr<ImuParameters> imuConfig_;
-
-  // IMU properties
-  bool isReferenceImu_;
-  bool estimateTimedelay_;
+  ImuDatasetReader dataset_;
+  std::vector<ImuMeasurement> imuData_;
   double timeOffset_;
 
-  // Statistics
-  double accelUncertaintyDiscrete_, accelRandomWalk_, accelUncertainty_;
-  double gyroUncertaintyDiscrete_, gyroRandomWalk_, gyroUncertainty_;
-
-  // Bias priors
-  Eigen::Vector3d GyroBiasPrior_;
-  int GyroBiasPriorCount_;
-
-  // IMU data
-  std::vector<ImuMeasurement> imuData_;
-
-  // Initial estimates
-  Eigen::Vector4d q_i_b_prior_;
-
-  // Bias splines
-  std::shared_ptr<bsplines::BSpline> gyroBias_;
-  std::shared_ptr<bsplines::BSpline> accelBias_;
-
   // Design variables
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> gyroBiasDv_;
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> accelBiasDv_;
-  std::shared_ptr<aslam::backend::RotationQuaternion> q_i_b_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPoint> r_b_Dv_;
+  std::shared_ptr<aslam::backend::TransformationDesignVariable> T_i_b_Dv_;
+  std::shared_ptr<aslam::backend::ScalarDesignVariable> timeOffsetDv_;
+
+  // Bias splines (3D for gyro and accel)
+  std::shared_ptr<aslam::splines::BSplineDesignVariable<3>> gyroBiasSpline_;
+  std::shared_ptr<aslam::splines::BSplineDesignVariable<3>> accelBiasSpline_;
 
   // Error terms
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors_;
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors_;
+  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors_;
 };
 
-// Scaled Misaligned IMU Class
+/**
+ * @brief IMU with scale and misalignment
+ */
 class IccScaledMisalignedImu : public IccImu {
  public:
-  // Nested ImuParameters class
-  class ImuParameters : public IccImu::ImuParameters {
-   public:
-    ImuParameters(const kalibr_common::ImuConfig& imuConfig, int imuNr);
+  IccScaledMisalignedImu(const ImuParameters& imuConfig,
+                         const ImuDatasetReader& dataset);
 
-    void printDetails(std::ostream& dest = std::cout) const override;
-    void setIntrisicsMatrices(const Eigen::Matrix3d& M_accel,
-                              const Eigen::Matrix3d& C_gyro_i,
-                              const Eigen::Matrix3d& M_gyro,
-                              const Eigen::Matrix3d& Ma_gyro);
-  };
+  void addDesignVariables(aslam::backend::OptimizationProblem& problem,
+                          const bsplines::BSplinePose& poseSpline) override;
 
-  IccScaledMisalignedImu(const kalibr_common::ImuConfig& imuConfig,
-                         const kalibr_common::ParsedArguments& parsed,
-                         bool isReferenceImu = true,
-                         bool estimateTimedelay = true, int imuNr = 0);
-
-  void updateImuConfig() override;
-  void addDesignVariables(
-      aslam::backend::OptimizationProblem& problem) override;
-
-  void addAccelerometerErrorTerms(
+  void addErrorTerms(
       aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      const aslam::backend::EuclideanExpression& g_w, double mSigma = 0.0,
-      double accelNoiseScale = 1.0) override;
-
-  void addGyroscopeErrorTerms(
-      aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      double mSigma = 0.0, double gyroNoiseScale = 1.0,
-      const aslam::backend::EuclideanExpression* g_w = nullptr) override;
+      const aslam::splines::BSplinePoseDesignVariable& poseDv,
+      const aslam::backend::EuclideanExpression& gravityExpression,
+      double gyroNoiseScale = 1.0, double accelNoiseScale = 1.0,
+      double huberGyro = -1.0, double huberAccel = -1.0) override;
 
  protected:
-  // Additional design variables for scaled misaligned model
-  std::shared_ptr<aslam::backend::RotationQuaternion> q_gyro_i_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> M_gyro_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_gyro_Dv_;
+  // Scale and misalignment matrices
+  std::shared_ptr<aslam::backend::MatrixDesignVariable> M_gyro_;
+  std::shared_ptr<aslam::backend::MatrixDesignVariable> M_accel_;
 };
 
-// Scaled Misaligned Size Effect IMU Class
+/**
+ * @brief IMU with scale, misalignment, and size effect
+ */
 class IccScaledMisalignedSizeEffectImu : public IccScaledMisalignedImu {
  public:
-  // Nested ImuParameters class
-  class ImuParameters : public IccScaledMisalignedImu::ImuParameters {
-   public:
-    ImuParameters(const kalibr_common::ImuConfig& imuConfig, int imuNr);
+  IccScaledMisalignedSizeEffectImu(const ImuParameters& imuConfig,
+                                   const ImuDatasetReader& dataset);
 
-    void printDetails(std::ostream& dest = std::cout) const override;
-    void setAccelerometerLeverArms(const Eigen::Vector3d& rx_i,
-                                   const Eigen::Vector3d& ry_i,
-                                   const Eigen::Vector3d& rz_i);
-  };
+  void addDesignVariables(aslam::backend::OptimizationProblem& problem,
+                          const bsplines::BSplinePose& poseSpline) override;
 
-  IccScaledMisalignedSizeEffectImu(const kalibr_common::ImuConfig& imuConfig,
-                                   const kalibr_common::ParsedArguments& parsed,
-                                   bool isReferenceImu = true,
-                                   bool estimateTimedelay = true,
-                                   int imuNr = 0);
-
-  void updateImuConfig() override;
-  void addDesignVariables(
-      aslam::backend::OptimizationProblem& problem) override;
-
-  void addAccelerometerErrorTerms(
+  void addErrorTerms(
       aslam::backend::OptimizationProblem& problem,
-      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
-      const aslam::backend::EuclideanExpression& g_w, double mSigma = 0.0,
-      double accelNoiseScale = 1.0) override;
+      const aslam::splines::BSplinePoseDesignVariable& poseDv,
+      const aslam::backend::EuclideanExpression& gravityExpression,
+      double gyroNoiseScale = 1.0, double accelNoiseScale = 1.0,
+      double huberGyro = -1.0, double huberAccel = -1.0) override;
 
- protected:
-  // Additional design variables for size effect model
-  std::shared_ptr<aslam::backend::EuclideanPoint> rx_i_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPoint> ry_i_Dv_;
-  std::shared_ptr<aslam::backend::EuclideanPoint> rz_i_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> Ix_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> Iy_Dv_;
-  std::shared_ptr<aslam::backend::MatrixBasic> Iz_Dv_;
+ private:
+  // Size effect parameters (eccentric mounting)
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_x_;
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_y_;
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_z_;
 };
 
-#endif  // ICCSENSORS_HPP
+}  // namespace kalibr
+
+#endif  // ICC_SENSORS_HPP

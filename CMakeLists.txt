@@ -10,6 +10,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Ceres REQUIRED)
 
 add_subdirectory(thirdparty/matplotplusplus)
 add_subdirectory(thirdparty/argparse)
@@ -68,11 +69,13 @@ add_subdirectory(thirdparty/aslam_cv/aslam_time)
 add_subdirectory(thirdparty/aslam_cv/aslam_cameras)
 add_subdirectory(thirdparty/aslam_cv/aslam_cameras_april)
 add_subdirectory(thirdparty/aslam_cv/aslam_cv_backend)
+add_subdirectory(thirdparty/aslam_cv/aslam_cv_error_terms)
 
 add_library(aslam_time::aslam_time ALIAS aslam_time)
 add_library(aslam_cameras::aslam_cameras ALIAS aslam_cameras)
 add_library(aslam_cameras_april::aslam_cameras_april ALIAS aslam_cameras_april)
 add_library(aslam_cv_backend::aslam_cv_backend ALIAS aslam_cv_backend)
+add_library(aslam_cv_error_terms::aslam_cv_error_terms ALIAS aslam_cv_error_terms)
 
 
 
@@ -81,7 +84,8 @@ file(GLOB_RECURSE SRC_FILES src/*.cpp)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
-    Eigen3::Eigen 
+    Eigen3::Eigen
+    Ceres::ceres
     matplot 
     argparse
     rapidcsv
@@ -92,6 +96,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     aslam_cameras_april::aslam_cameras_april
     aslam_cv_backend::aslam_cv_backend
     aslam_time::aslam_time
+    aslam_cv_error_terms::aslam_cv_error_terms
     sm_kinematics::sm_kinematics
     sm_timing::sm_timing
     sm_logging::sm_logging
