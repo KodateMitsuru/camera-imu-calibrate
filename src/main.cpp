@@ -23,7 +23,7 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-    IccCalibrator calibrator;
+    // IccCalibrator calibrator;
 
     return 0;
 }
