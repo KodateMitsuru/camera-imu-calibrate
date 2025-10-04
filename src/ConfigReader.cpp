@@ -1,9 +1,9 @@
 #include <algorithm>
+#include <any>
 #include <cmath>
 #include <iostream>
 #include <kalibr_common/ConfigReader.hpp>
 #include <opencv2/core/persistence.hpp>
-#include <sstream>
 #include <stdexcept>
 
 // ASLAM camera includes
@@ -18,7 +18,14 @@
 #include <aslam/cameras/OmniProjection.hpp>
 #include <aslam/cameras/PinholeProjection.hpp>
 #include <aslam/cameras/RadialTangentialDistortion.hpp>
-
+#include <vector>
+#include <yaml-cpp/yaml.h>
+// ASLAM backend includes
+#include <aslam/Frame.hpp>
+#include <aslam/backend/ErrorTerm.hpp>
+#include <aslam/backend/HomogeneousExpression.hpp>
+#include <aslam/backend/SimpleReprojectionError.hpp>
+#include <sm/kinematics/Transformation.hpp>
 namespace kalibr {
 
 // ============================================================================
@@ -108,29 +115,101 @@ TargetType stringToTargetType(const std::string& str) {
 // ============================================================================
 
 ParametersBase::ParametersBase(const std::string& yamlFile,
-                               const std::string& name)
+                               const std::string& name,
+                               bool createYaml)
     : yamlFile_(yamlFile), name_(name) {
-  readYaml();
+  if (createYaml) {
+    data_.clear();
+  } else {
+    data_ = this->readYaml();
+  }
 }
 
-void ParametersBase::readYaml() {
-  fs_ = cv::FileStorage(yamlFile_, cv::FileStorage::READ);
-  if (!fs_.isOpened()) {
+ParametersBase::DictType ParametersBase::readYaml() {
+  DictType data;
+  try{
+    cv::FileStorage fs(yamlFile_, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+      raiseError("Could not read configuration from " + yamlFile_);
+    }
+
+    for (const auto& key : fs.root()) {
+      data[key] = fs[key];
+    }
+  } catch (...) {
     raiseError("Could not read configuration from " + yamlFile_);
   }
+
+  return data;
 }
 
 void ParametersBase::writeYaml(const std::string& filename) {
-  std::string outFile = filename.empty() ? yamlFile_ : filename;
-
-  cv::FileStorage fsOut(outFile, cv::FileStorage::WRITE);
-  if (!fsOut.isOpened()) {
-    raiseError("Could not write configuration to " + outFile);
+  std::string filename_ = filename;
+  if (filename_.empty()) {
+    filename_ = yamlFile_;
   }
 
-  // Note: This is a simplified version. Full implementation would need to
-  // copy all data from fs_ to fsOut
-  fsOut.release();
+  try{
+    cv::FileStorage fs(filename_, cv::FileStorage::WRITE);
+    if (!fs.isOpened()) {
+      raiseError("Could not write configuration to " + filename_);
+    }
+    fs << "{";  // Start of map
+    for (const auto& [key, value] : data_) {
+      if (value.type() == typeid(int)) {
+        fs << key << std::any_cast<int>(value);
+      } else if (value.type() == typeid(double)) {
+        fs << key << std::any_cast<double>(value);
+      } else if (value.type() == typeid(bool)) {
+        fs << key << std::any_cast<bool>(value);
+      } else if (value.type() == typeid(std::string)) {
+        fs << key << std::any_cast<std::string>(value);
+      } else if (value.type() == typeid(std::vector<int>)) {
+        fs << key << std::any_cast<std::vector<int>>(value);
+      } else if (value.type() == typeid(std::vector<double>)) {
+        fs << key << std::any_cast<std::vector<double>>(value);
+      } else if (value.type() == typeid(std::vector<std::string>)) {
+        fs << key << std::any_cast<std::vector<std::string>>(value);
+      } else if (value.type() == typeid(DictType)) {
+        fs << key << "{";  // Start of nested map
+        DictType nestedDict = std::any_cast<DictType>(value);
+        for (const auto& [nestedKey, nestedValue] : nestedDict) {
+          if (nestedValue.type() == typeid(int)) {
+            fs << nestedKey << std::any_cast<int>(nestedValue);
+          } else if (nestedValue.type() == typeid(double)) {
+            fs << nestedKey << std::any_cast<double>(nestedValue);
+          } else if (nestedValue.type() == typeid(bool)) {
+            fs << nestedKey << std::any_cast<bool>(nestedValue);
+          } else if (nestedValue.type() == typeid(std::string)) {
+            fs << nestedKey << std::any_cast<std::string>(nestedValue);
+          } else if (nestedValue.type() == typeid(std::vector<int>)) {
+            fs << nestedKey << std::any_cast<std::vector<int>>(nestedValue);
+          } else if (nestedValue.type() == typeid(std::vector<double>)) {
+            fs << nestedKey << std::any_cast<std::vector<double>>(nestedValue);
+          } else if (nestedValue.type() == typeid(std::vector<std::string>)) {
+            fs << nestedKey << std::any_cast<std::vector<std::string>>(nestedValue);
+          } else {
+            raiseError("Unsupported data type for key: " + nestedKey);
+          }
+        }
+        fs << "}";  // End of nested map
+      } else {
+        raiseError("Unsupported data type for key: " + key);
+      }
+    }
+    fs << "}";  // End of map
+    fs.release();
+  } catch (...) {
+    raiseError("Could not write configuration to " + filename_);
+  }
+}
+
+ParametersBase::DictType ParametersBase::getYamlDict() const {
+  return data_;
+}
+
+void ParametersBase::setYamlDict(const DictType& dict) {
+  data_ = dict;
 }
 
 void ParametersBase::raiseError(const std::string& message) const {
@@ -141,15 +220,13 @@ void ParametersBase::raiseError(const std::string& message) const {
 // CameraParameters Implementation
 // ============================================================================
 
-CameraParameters::CameraParameters(const std::string& yamlFile)
-    : ParametersBase(yamlFile, "CameraConfig") {}
+CameraParameters::CameraParameters(const std::string& yamlFile,
+                                   bool createYaml)
+    : ParametersBase(yamlFile, "CameraConfig", createYaml) {}
 
 std::string CameraParameters::getImageFolder() const {
   std::string folder;
-  fs_["image_folder"] >> folder;
-  if (folder.empty()) {
-    raiseError("image_folder field is missing or empty");
-  }
+  folder = std::any_cast<std::string>(data_.at("image_folder"));
   return folder;
 }
 
@@ -157,13 +234,13 @@ void CameraParameters::setImageFolder(const std::string& folder) {
   if (folder.empty()) {
     raiseError("image_folder cannot be empty");
   }
-  // Note: Setting values in cv::FileStorage requires rewriting
+  data_["image_folder"] = folder;
 }
 
 std::pair<CameraModel, std::vector<double>> CameraParameters::getIntrinsics()
     const {
   std::string modelStr;
-  fs_["camera_model"] >> modelStr;
+  modelStr = std::any_cast<std::string>(data_.at("camera_model"));
   if (modelStr.empty()) {
     raiseError("camera_model field is missing");
   }
@@ -171,13 +248,9 @@ std::pair<CameraModel, std::vector<double>> CameraParameters::getIntrinsics()
   CameraModel model = stringToCameraModel(modelStr);
 
   std::vector<double> intrinsics;
-  cv::FileNode intrinsicsNode = fs_["intrinsics"];
-  if (intrinsicsNode.empty()) {
+  intrinsics = std::any_cast<std::vector<double>>(data_.at("intrinsics"));
+  if (intrinsics.empty()) {
     raiseError("intrinsics field is missing");
-  }
-
-  for (const auto& value : intrinsicsNode) {
-    intrinsics.push_back(static_cast<double>(value));
   }
 
   checkIntrinsics(model, intrinsics);
@@ -188,13 +261,14 @@ std::pair<CameraModel, std::vector<double>> CameraParameters::getIntrinsics()
 void CameraParameters::setIntrinsics(CameraModel model,
                                      const std::vector<double>& intrinsics) {
   checkIntrinsics(model, intrinsics);
-  // Note: Setting values requires rewriting the file
+  data_["camera_model"] = cameraModelToString(model);
+  data_["intrinsics"] = intrinsics;
 }
 
 std::pair<DistortionModel, std::vector<double>>
 CameraParameters::getDistortion() const {
   std::string modelStr;
-  fs_["distortion_model"] >> modelStr;
+  modelStr = std::any_cast<std::string>(data_.at("distortion_model"));
   if (modelStr.empty()) {
     raiseError("distortion_model field is missing");
   }
@@ -202,11 +276,9 @@ CameraParameters::getDistortion() const {
   DistortionModel model = stringToDistortionModel(modelStr);
 
   std::vector<double> coeffs;
-  cv::FileNode coeffsNode = fs_["distortion_coeffs"];
-  if (!coeffsNode.empty()) {
-    for (const auto& value : coeffsNode) {
-      coeffs.push_back(static_cast<double>(value));
-    }
+  coeffs = std::any_cast<std::vector<double>>(data_.at("distortion_coeffs"));
+  if (coeffs.empty()) {
+    raiseError("distortion_coeffs field is missing");
   }
 
   checkDistortion(model, coeffs);
@@ -217,18 +289,15 @@ CameraParameters::getDistortion() const {
 void CameraParameters::setDistortion(DistortionModel model,
                                      const std::vector<double>& coeffs) {
   checkDistortion(model, coeffs);
-  // Note: Setting values requires rewriting the file
+  data_["distortion_model"] = distortionModelToString(model);
+  data_["distortion_coeffs"] = coeffs;
 }
 
 Eigen::Vector2i CameraParameters::getResolution() const {
   std::vector<int> res;
-  cv::FileNode resNode = fs_["resolution"];
-  if (resNode.empty()) {
+  res = std::any_cast<std::vector<int>>(data_.at("resolution"));
+  if (res.empty()) {
     raiseError("resolution field is missing");
-  }
-
-  for (const auto& value : resNode) {
-    res.push_back(static_cast<int>(value));
   }
 
   if (res.size() != 2) {
@@ -243,17 +312,17 @@ Eigen::Vector2i CameraParameters::getResolution() const {
 
 void CameraParameters::setResolution(const Eigen::Vector2i& resolution) {
   checkResolution(resolution);
-  // Note: Setting values requires rewriting the file
+  data_["resolution"] = std::vector<int>{resolution(0), resolution(1)};
 }
 
 double CameraParameters::getLineDelay() const {
   double lineDelay = 0.0;
-  fs_["line_delay"] >> lineDelay;
+  lineDelay = std::any_cast<double>(data_.at("line_delay"));
   return lineDelay;
 }
 
 void CameraParameters::setLineDelay(double lineDelay) {
-  // Note: Setting values requires rewriting the file
+  data_["line_delay"] = lineDelay;
 }
 
 void CameraParameters::checkIntrinsics(
@@ -397,12 +466,12 @@ void CameraParameters::printDetails(std::ostream& os) const {
 // ImuParameters Implementation
 // ============================================================================
 
-ImuParameters::ImuParameters(const std::string& yamlFile)
-    : ParametersBase(yamlFile, "ImuConfig") {}
+ImuParameters::ImuParameters(const std::string& yamlFile, bool createYaml)
+    : ParametersBase(yamlFile, "ImuConfig", createYaml) {}
 
 std::string ImuParameters::getCsvFile() const {
   std::string csvFile;
-  fs_["csv_file"] >> csvFile;
+  csvFile = std::any_cast<std::string>(data_.at("csv_file"));
   if (csvFile.empty()) {
     raiseError("csv_file field is missing or empty");
   }
@@ -413,22 +482,19 @@ void ImuParameters::setCsvFile(const std::string& file) {
   if (file.empty()) {
     raiseError("csv_file cannot be empty");
   }
-  // Note: Setting values requires rewriting the file
+  data_["csv_file"] = file;
 }
 
 double ImuParameters::getUpdateRate() const {
   double updateRate = 0.0;
-  fs_["update_rate"] >> updateRate;
-  if (updateRate <= 0.0) {
-    raiseError("update_rate field is missing or invalid");
-  }
+  updateRate = std::any_cast<double>(data_.at("update_rate"));
   checkUpdateRate(updateRate);
   return updateRate;
 }
 
 void ImuParameters::setUpdateRate(double updateRate) {
   checkUpdateRate(updateRate);
-  // Note: Setting values requires rewriting the file
+  data_["update_rate"] = updateRate;
 }
 
 std::tuple<double, double, double> ImuParameters::getAccelerometerStatistics()
@@ -436,8 +502,8 @@ std::tuple<double, double, double> ImuParameters::getAccelerometerStatistics()
   double noiseDensity = 0.0;
   double randomWalk = 0.0;
 
-  fs_["accelerometer_noise_density"] >> noiseDensity;
-  fs_["accelerometer_random_walk"] >> randomWalk;
+  noiseDensity = std::any_cast<double>(data_.at("accelerometer_noise_density"));
+  randomWalk = std::any_cast<double>(data_.at("accelerometer_random_walk"));
 
   checkAccelerometerStatistics(noiseDensity, randomWalk);
 
@@ -450,7 +516,8 @@ std::tuple<double, double, double> ImuParameters::getAccelerometerStatistics()
 void ImuParameters::setAccelerometerStatistics(double noiseDensity,
                                                double randomWalk) {
   checkAccelerometerStatistics(noiseDensity, randomWalk);
-  // Note: Setting values requires rewriting the file
+  data_["accelerometer_noise_density"] = noiseDensity;
+  data_["accelerometer_random_walk"] = randomWalk;
 }
 
 std::tuple<double, double, double> ImuParameters::getGyroscopeStatistics()
@@ -458,8 +525,8 @@ std::tuple<double, double, double> ImuParameters::getGyroscopeStatistics()
   double noiseDensity = 0.0;
   double randomWalk = 0.0;
 
-  fs_["gyroscope_noise_density"] >> noiseDensity;
-  fs_["gyroscope_random_walk"] >> randomWalk;
+  noiseDensity = std::any_cast<double>(data_.at("gyroscope_noise_density"));
+  randomWalk = std::any_cast<double>(data_.at("gyroscope_random_walk"));
 
   checkGyroscopeStatistics(noiseDensity, randomWalk);
 
@@ -472,7 +539,8 @@ std::tuple<double, double, double> ImuParameters::getGyroscopeStatistics()
 void ImuParameters::setGyroscopeStatistics(double noiseDensity,
                                            double randomWalk) {
   checkGyroscopeStatistics(noiseDensity, randomWalk);
-  // Note: Setting values requires rewriting the file
+  data_["gyroscope_noise_density"] = noiseDensity;
+  data_["gyroscope_random_walk"] = randomWalk;
 }
 
 void ImuParameters::checkUpdateRate(double updateRate) const {
@@ -524,12 +592,12 @@ void ImuParameters::printDetails(std::ostream& os) const {
 // ============================================================================
 
 CalibrationTargetParameters::CalibrationTargetParameters(
-    const std::string& yamlFile)
-    : ParametersBase(yamlFile, "CalibrationTargetConfig") {}
+    const std::string& yamlFile, bool createYaml)
+    : ParametersBase(yamlFile, "CalibrationTargetConfig", createYaml) {}
 
 TargetType CalibrationTargetParameters::getTargetType() const {
   std::string typeStr;
-  fs_["target_type"] >> typeStr;
+  typeStr = std::any_cast<std::string>(data_.at("target_type"));
   if (typeStr.empty()) {
     raiseError("target_type field is missing");
   }
@@ -544,10 +612,10 @@ CalibrationTargetParameters::CheckerboardParams
 CalibrationTargetParameters::getCheckerboardParams() const {
   CheckerboardParams params;
 
-  fs_["targetRows"] >> params.rows;
-  fs_["targetCols"] >> params.cols;
-  fs_["rowSpacingMeters"] >> params.rowSpacing;
-  fs_["colSpacingMeters"] >> params.colSpacing;
+  params.rows = std::any_cast<int>(data_.at("targetRows"));
+  params.cols = std::any_cast<int>(data_.at("targetCols"));
+  params.rowSpacing = std::any_cast<double>(data_.at("rowSpacingMeters"));
+  params.colSpacing = std::any_cast<double>(data_.at("colSpacingMeters"));
 
   if (params.rows < 3 || params.cols < 3) {
     raiseError("Invalid checkerboard dimensions (must be >= 3x3)");
@@ -563,12 +631,12 @@ CalibrationTargetParameters::CirclegridParams
 CalibrationTargetParameters::getCirclegridParams() const {
   CirclegridParams params;
 
-  fs_["targetRows"] >> params.rows;
-  fs_["targetCols"] >> params.cols;
-  fs_["spacingMeters"] >> params.spacing;
+  params.rows = std::any_cast<int>(data_.at("targetRows"));
+  params.cols = std::any_cast<int>(data_.at("targetCols"));
+  params.spacing = std::any_cast<double>(data_.at("spacingMeters"));
 
   int asymmetric = 0;
-  fs_["asymmetricGrid"] >> asymmetric;
+  asymmetric = std::any_cast<int>(data_.at("asymmetricGrid"));
   params.asymmetric = (asymmetric != 0);
 
   if (params.rows < 3 || params.cols < 3) {
@@ -585,10 +653,10 @@ CalibrationTargetParameters::AprilgridParams
 CalibrationTargetParameters::getAprilgridParams() const {
   AprilgridParams params;
 
-  fs_["tagRows"] >> params.tagRows;
-  fs_["tagCols"] >> params.tagCols;
-  fs_["tagSize"] >> params.tagSize;
-  fs_["tagSpacing"] >> params.tagSpacing;
+  params.tagRows = std::any_cast<int>(data_.at("tagRows"));
+  params.tagCols = std::any_cast<int>(data_.at("tagCols"));
+  params.tagSize = std::any_cast<double>(data_.at("tagSize"));
+  params.tagSpacing = std::any_cast<double>(data_.at("tagSpacing"));
 
   if (params.tagRows < 1 || params.tagCols < 1) {
     raiseError("Invalid aprilgrid dimensions (must be >= 1x1)");
@@ -603,7 +671,7 @@ CalibrationTargetParameters::getAprilgridParams() const {
   return params;
 }
 
-void CalibrationTargetParameters::checkTargetType(TargetType type) const {
+void CalibrationTargetParameters::checkTargetType(TargetType) const {
   // All enum values are valid
 }
 
@@ -641,148 +709,114 @@ void CalibrationTargetParameters::printDetails(std::ostream& os) const {
 // CameraChainParameters Implementation
 // ============================================================================
 
-CameraChainParameters::CameraChainParameters(const std::string& yamlFile)
-    : ParametersBase(yamlFile, "CameraChainParameters") {
-  // Count number of cameras
-  size_t camCount = 0;
-  while (true) {
-    std::string camKey = "cam" + std::to_string(camCount);
-    cv::FileNode node = fs_[camKey];
-    if (node.empty()) {
-      break;
-    }
-    camCount++;
-  }
+CameraChainParameters::CameraChainParameters(const std::string& yamlFile,
+                                             bool createYaml)
+    : ParametersBase(yamlFile, "CameraChainParameters", createYaml) {}
 
-  cameraCache_.resize(camCount);
-}
-
-size_t CameraChainParameters::numCameras() const { return cameraCache_.size(); }
+size_t CameraChainParameters::numCameras() const { return data_.size(); }
 
 std::shared_ptr<CameraParameters> CameraChainParameters::getCameraParameters(
     size_t camIdx) const {
   checkCameraIndex(camIdx);
-
-  if (!cameraCache_[camIdx]) {
-    // Create a temporary camera parameters object
-    // Note: This requires extracting the cam{N} subtree from the main file
-    // For now, we'll return nullptr and this needs to be implemented properly
-    raiseError(
-        "getCameraParameters not fully implemented - requires YAML subtree "
-        "extraction");
-  }
-
-  return cameraCache_[camIdx];
+  auto param = std::make_shared<CameraParameters>("TEMP_CONFIG", true);
+  param->setYamlDict(std::any_cast<ParametersBase::DictType>(data_.at("cam" + std::to_string(camIdx))));
+  return param;
 }
 
-Eigen::Matrix4d CameraChainParameters::getExtrinsicsLastCamToHere(
-    size_t camIdx) const {
+sm::kinematics::Transformation
+CameraChainParameters::getExtrinsicsLastCamToHere(size_t camIdx) const {
   checkCameraIndex(camIdx);
 
   if (camIdx == 0) {
-    raiseError("Cannot get extrinsics for cam0 (base camera)");
+    raiseError(
+        "setExtrinsicsLastCamToHere(): can't get extrinsics for first camera "
+        "in chain (cam0=base)");
   }
-
-  std::string camKey = "cam" + std::to_string(camIdx);
-  cv::FileNode camNode = fs_[camKey];
-  cv::FileNode tNode = camNode["T_cn_cnm1"];
-
-  if (tNode.empty()) {
-    raiseError("T_cn_cnm1 field is missing for " + camKey);
+  sm::kinematics::Transformation trafo;
+  try {
+    auto t_vec = std::any_cast<std::vector<double>>(
+        std::any_cast<ParametersBase::DictType>(
+            data_.at("cam" + std::to_string(camIdx)))
+            .at("T_cn_cnm1"));
+    auto t_mat = Eigen::Map<const Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(
+        t_vec.data());
+    trafo = sm::kinematics::Transformation(t_mat);
+  } catch (...) {
+    raiseError("invalid camera baseline (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
   }
-
-  Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-  int row = 0;
-  for (const auto& rowNode : tNode) {
-    int col = 0;
-    for (const auto& value : rowNode) {
-      T(row, col++) = static_cast<double>(value);
-    }
-    row++;
-  }
-
-  return T;
+  return trafo;
 }
 
 void CameraChainParameters::setExtrinsicsLastCamToHere(
-    size_t camIdx, const Eigen::Matrix4d& T) {
+    size_t camIdx, const sm::kinematics::Transformation& T) {
   checkCameraIndex(camIdx);
   if (camIdx == 0) {
-    raiseError("Cannot set extrinsics for cam0 (base camera)");
+    raiseError(
+        "setExtrinsicsLastCamToHere(): can't set extrinsics for first cam in "
+        "chain (cam0=base)");
   }
-  // Note: Setting values requires rewriting the file
+  auto t_vec = std::vector<double>(T.T().data(),
+                                        T.T().data() + T.T().size());
+  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["T_cn_cnm1"] = t_vec;
 }
 
-Eigen::Matrix4d CameraChainParameters::getExtrinsicsImuToCam(
+sm::kinematics::Transformation CameraChainParameters::getExtrinsicsImuToCam(
     size_t camIdx) const {
   checkCameraIndex(camIdx);
-
-  std::string camKey = "cam" + std::to_string(camIdx);
-  cv::FileNode camNode = fs_[camKey];
-  cv::FileNode tNode = camNode["T_cam_imu"];
-
-  if (tNode.empty()) {
-    raiseError("T_cam_imu field is missing for " + camKey);
+  sm::kinematics::Transformation T;
+  try {
+    auto t_vec = std::any_cast<std::vector<double>>(
+        std::any_cast<ParametersBase::DictType>(
+            data_.at("cam" + std::to_string(camIdx)))
+            .at("T_cam_imu"));
+    T = sm::kinematics::Transformation(Eigen::Map<const Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(t_vec.data()));
+  } catch (...) {
+    raiseError("invalid T_cam_imu (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
   }
-
-  Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-  int row = 0;
-  for (const auto& rowNode : tNode) {
-    int col = 0;
-    for (const auto& value : rowNode) {
-      T(row, col++) = static_cast<double>(value);
-    }
-    row++;
-  }
-
   return T;
 }
 
 void CameraChainParameters::setExtrinsicsImuToCam(size_t camIdx,
-                                                  const Eigen::Matrix4d& T) {
+                                                  const sm::kinematics::Transformation& T) {
   checkCameraIndex(camIdx);
-  // Note: Setting values requires rewriting the file
+  auto t_vec = std::vector<double>(T.T().data(),
+                                        T.T().data() + T.T().size());
+  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["T_cam_imu"] = t_vec;
 }
 
 double CameraChainParameters::getTimeshiftCamImu(size_t camIdx) const {
   checkCameraIndex(camIdx);
-
-  std::string camKey = "cam" + std::to_string(camIdx);
-  cv::FileNode camNode = fs_[camKey];
-
   double timeshift = 0.0;
-  camNode["timeshift_cam_imu"] >> timeshift;
-
+  timeshift = std::any_cast<double>(
+      std::any_cast<ParametersBase::DictType>(
+          data_.at("cam" + std::to_string(camIdx)))
+          .at("timeshift_cam_imu"));
   return timeshift;
 }
 
 void CameraChainParameters::setTimeshiftCamImu(size_t camIdx,
                                                double timeshift) {
   checkCameraIndex(camIdx);
-  // Note: Setting values requires rewriting the file
+  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["timeshift_cam_imu"] = timeshift;
 }
 
 std::vector<int> CameraChainParameters::getCamOverlaps(size_t camIdx) const {
   checkCameraIndex(camIdx);
-
-  std::string camKey = "cam" + std::to_string(camIdx);
-  cv::FileNode camNode = fs_[camKey];
-  cv::FileNode overlapsNode = camNode["cam_overlaps"];
-
   std::vector<int> overlaps;
-  if (!overlapsNode.empty()) {
-    for (const auto& value : overlapsNode) {
-      overlaps.push_back(static_cast<int>(value));
-    }
+  try {
+    overlaps = std::any_cast<std::vector<int>>(
+        std::any_cast<ParametersBase::DictType>(
+            data_.at("cam" + std::to_string(camIdx))).at("overlaps"));
+  } catch (...) {
+    raiseError("invalid overlaps (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
   }
-
   return overlaps;
 }
 
 void CameraChainParameters::setCamOverlaps(size_t camIdx,
                                            const std::vector<int>& overlaps) {
   checkCameraIndex(camIdx);
-  // Note: Setting values requires rewriting the file
+  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["overlaps"] = overlaps;
 }
 
 void CameraChainParameters::checkCameraIndex(size_t camIdx) const {
@@ -799,18 +833,18 @@ void CameraChainParameters::printDetails(std::ostream& os) const {
     // Print extrinsics if available
     if (i > 0) {
       try {
-        Eigen::Matrix4d T = getExtrinsicsLastCamToHere(i);
+        sm::kinematics::Transformation T = getExtrinsicsLastCamToHere(i);
         os << "  Baseline (T_cn_cnm1):" << std::endl;
-        os << T << std::endl;
+        os << T.T() << std::endl;
       } catch (...) {
         os << "  Baseline: no data available" << std::endl;
       }
     }
 
     try {
-      Eigen::Matrix4d T = getExtrinsicsImuToCam(i);
+      sm::kinematics::Transformation T = getExtrinsicsImuToCam(i);
       os << "  T_cam_imu:" << std::endl;
-      os << T << std::endl;
+      os << T.T() << std::endl;
     } catch (...) {
       os << "  T_cam_imu: no data available" << std::endl;
     }
@@ -828,7 +862,8 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
     CameraModel cameraModel, const std::vector<double>& intrinsics,
     DistortionModel distModel, const std::vector<double>& distCoeffs,
     const Eigen::Vector2i& resolution) {
-  auto camera = std::make_shared<AslamCamera>();
+  auto cameraPtr = new AslamCamera();
+  std::shared_ptr<AslamCamera> camera(cameraPtr);
 
   // Pinhole camera model
   if (cameraModel == CameraModel::Pinhole) {
@@ -844,10 +879,25 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::PinholeProjection<
           aslam::cameras::RadialTangentialDistortion>
           proj(fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::PinholeProjection<
               aslam::cameras::RadialTangentialDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      // Lambda闭包捕获具体类型 - 编译期确定，零运行时开销，无需反射！
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else if (distModel == DistortionModel::Equidistant) {
       // Equidistant distortion
@@ -855,27 +905,69 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
                                                  distCoeffs[2], distCoeffs[3]);
       aslam::cameras::PinholeProjection<aslam::cameras::EquidistantDistortion>
           proj(fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::PinholeProjection<
               aslam::cameras::EquidistantDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else if (distModel == DistortionModel::FOV) {
       // FOV distortion
       aslam::cameras::FovDistortion dist(distCoeffs[0]);
       aslam::cameras::PinholeProjection<aslam::cameras::FovDistortion> proj(
           fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::PinholeProjection<aslam::cameras::FovDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else if (distModel == DistortionModel::None) {
       // No distortion
       aslam::cameras::PinholeProjection<aslam::cameras::NoDistortion> proj(
           fu, fv, pu, pv, resolution.x(), resolution.y());
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::PinholeProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else {
       throw std::runtime_error(
@@ -897,10 +989,24 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
           distCoeffs[0], distCoeffs[1], distCoeffs[2], distCoeffs[3]);
       aslam::cameras::OmniProjection<aslam::cameras::RadialTangentialDistortion>
           proj(xi, fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::OmniProjection<
               aslam::cameras::RadialTangentialDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else if (distModel == DistortionModel::Equidistant) {
       throw std::runtime_error(
@@ -910,9 +1016,23 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       // No distortion
       aslam::cameras::OmniProjection<aslam::cameras::NoDistortion> proj(
           xi, fu, fv, pu, pv, resolution.x(), resolution.y());
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::OmniProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else {
       throw std::runtime_error(
@@ -933,10 +1053,24 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       // No distortion
       aslam::cameras::ExtendedUnifiedProjection<aslam::cameras::NoDistortion>
           proj(alpha, beta, fu, fv, pu, pv, resolution.x(), resolution.y());
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::ExtendedUnifiedProjection<
               aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else {
       throw std::runtime_error(
@@ -957,9 +1091,23 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       // No distortion
       aslam::cameras::DoubleSphereProjection<aslam::cameras::NoDistortion> proj(
           xi, alpha, fu, fv, pu, pv, resolution.x(), resolution.y());
-      camera->geometry_ = std::make_shared<aslam::cameras::CameraGeometry<
+
+      using GeometryType = aslam::cameras::CameraGeometry<
           aslam::cameras::DoubleSphereProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>>(proj);
+          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using FrameType = aslam::Frame<GeometryType>;
+
+      auto geom = std::make_shared<GeometryType>(proj);
+      camera->geometry_ = geom;
+
+      camera->errorFactory_ =
+          [geom](const Eigen::Vector2d& measurement,
+                 const Eigen::Matrix2d& invR,
+                 const aslam::backend::HomogeneousExpression& point) {
+            return std::make_shared<
+                aslam::backend::SimpleReprojectionError<FrameType>>(
+                measurement, invR, point, *geom);
+          };
 
     } else {
       throw std::runtime_error(
@@ -982,6 +1130,14 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
 
   return fromParameters(cameraModel, intrinsics, distModel, distCoeffs,
                         resolution);
+}
+
+std::shared_ptr<aslam::backend::ErrorTerm> AslamCamera::createReprojectionError(
+    const Eigen::Vector2d& measurement, const Eigen::Matrix2d& invR,
+    const aslam::backend::HomogeneousExpression& point) const {
+  // 直接调用存储的工厂函数 - 零运行时开销！
+  // errorFactory_在创建相机时已经绑定了具体的类型
+  return errorFactory_(measurement, invR, point);
 }
 
 }  // namespace kalibr

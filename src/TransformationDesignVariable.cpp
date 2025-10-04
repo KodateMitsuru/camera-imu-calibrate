@@ -1,87 +1,76 @@
 #include <kalibr_backend/TransformationDesignVariable.hpp>
-#include <sm/kinematics/rotations.hpp>
+#include <stdexcept>
 
 namespace aslam {
 namespace backend {
 
 TransformationDesignVariable::TransformationDesignVariable()
-    : DesignVariable(), T_() {}
+    : initial_T_(sm::kinematics::Transformation()) {
+  // Initialize with identity transformation
+  Eigen::Vector4d q_identity(0.0, 0.0, 0.0, 1.0);  // w, x, y, z
+  Eigen::Vector3d t_zero = Eigen::Vector3d::Zero();
+
+  q_ = std::make_shared<RotationQuaternion>(q_identity);
+  q_->setActive(true);
+
+  t_ = std::make_shared<EuclideanPoint>(t_zero);
+  t_->setActive(true);
+
+  // Create the transformation expression
+  expression_ =
+      TransformationExpression(q_->toExpression(), t_->toExpression());
+}
 
 TransformationDesignVariable::TransformationDesignVariable(
-    const sm::kinematics::Transformation& T)
-    : DesignVariable(), T_(T) {}
+    const sm::kinematics::Transformation& transformation, bool rotationActive,
+    bool translationActive)
+    : initial_T_(transformation) {
+  // Extract quaternion (aslam uses [x, y, z, w] order)
+  Eigen::Vector4d q_wxyz = transformation.q();
+  Eigen::Vector4d q_xyzw;
+  q_xyzw << q_wxyz[1], q_wxyz[2], q_wxyz[3],
+      q_wxyz[0];  // Convert w,x,y,z to x,y,z,w
 
-TransformationDesignVariable::TransformationDesignVariable(
-    const Eigen::Matrix3d& C, const Eigen::Vector3d& t)
-    : DesignVariable(), T_(C, t) {}
-
-sm::kinematics::Transformation TransformationDesignVariable::transformation()
-    const {
-  return T_;
-}
-
-void TransformationDesignVariable::setTransformation(
-    const sm::kinematics::Transformation& T) {
-  T_ = T;
-}
-
-void TransformationDesignVariable::setParameters(const Eigen::Matrix3d& C,
-                                                 const Eigen::Vector3d& t) {
-  T_ = sm::kinematics::Transformation(C, t);
-}
-
-void TransformationDesignVariable::updateImplementation(const double* dp,
-                                                        int size) {
-  if (size != 6) {
-    throw std::runtime_error(
-        "TransformationDesignVariable: update size must be 6");
-  }
-
-  // First 3 elements are rotation perturbation (axis-angle)
-  Eigen::Vector3d rotationPerturbation(dp[0], dp[1], dp[2]);
-
-  // Last 3 elements are translation perturbation
-  Eigen::Vector3d translationPerturbation(dp[3], dp[4], dp[5]);
-
-  // Update rotation: C_new = exp(w_hat) * C_old
-  Eigen::Matrix3d dC = sm::kinematics::axisAngle2R(rotationPerturbation);
-  Eigen::Matrix3d C_new = dC * T_.C();
-
-  // Update translation: t_new = t_old + dt
-  Eigen::Vector3d t_new = T_.t() + translationPerturbation;
-
-  // Set the new transformation
-  T_ = sm::kinematics::Transformation(C_new, t_new);
-}
-
-void TransformationDesignVariable::getParametersImplementation(
-    Eigen::MatrixXd& value) const {
-  value.resize(6, 1);
-
-  // Get rotation as axis-angle
-  Eigen::Vector3d rotationVector = sm::kinematics::R2AxisAngle(T_.C());
-  value.block<3, 1>(0, 0) = rotationVector;
-
-  // Get translation
-  value.block<3, 1>(3, 0) = T_.t();
-}
-
-void TransformationDesignVariable::setParametersImplementation(
-    const Eigen::MatrixXd& value) {
-  if (value.rows() != 6 || value.cols() != 1) {
-    throw std::runtime_error(
-        "TransformationDesignVariable: parameters must be 6x1");
-  }
-
-  // Extract rotation vector
-  Eigen::Vector3d rotationVector = value.block<3, 1>(0, 0);
-  Eigen::Matrix3d C = sm::kinematics::axisAngle2R(rotationVector);
+  q_ = std::make_shared<RotationQuaternion>(q_xyzw);
+  q_->setActive(rotationActive);
 
   // Extract translation
-  Eigen::Vector3d t = value.block<3, 1>(3, 0);
+  Eigen::Vector3d t = transformation.t();
+  t_ = std::make_shared<EuclideanPoint>(t);
+  t_->setActive(translationActive);
 
-  // Set transformation
-  T_ = sm::kinematics::Transformation(C, t);
+  // Create the transformation expression from rotation and translation
+  // expressions
+  expression_ =
+      TransformationExpression(q_->toExpression(), t_->toExpression());
+}
+
+TransformationExpression TransformationDesignVariable::toExpression() const {
+  return expression_;
+}
+
+Eigen::Matrix4d TransformationDesignVariable::T() const {
+  return expression_.toTransformationMatrix();
+}
+
+std::shared_ptr<DesignVariable> TransformationDesignVariable::getDesignVariable(
+    int i) {
+  if (i == 0) {
+    return q_;
+  } else if (i == 1) {
+    return t_;
+  } else {
+    throw std::runtime_error("Index out of bounds: " + std::to_string(i) +
+                             " >= 2");
+  }
+}
+
+void TransformationDesignVariable::setRotationActive(bool active) {
+  q_->setActive(active);
+}
+
+void TransformationDesignVariable::setTranslationActive(bool active) {
+  t_->setActive(active);
 }
 
 }  // namespace backend

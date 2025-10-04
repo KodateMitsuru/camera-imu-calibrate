@@ -2,8 +2,10 @@
 #define KALIBR_BACKEND_TRANSFORMATION_DESIGN_VARIABLE_HPP
 
 #include <Eigen/Core>
-#include <aslam/backend/DesignVariable.hpp>
-#include <sm/kinematics/RotationVector.hpp>
+#include <aslam/backend/EuclideanPoint.hpp>
+#include <aslam/backend/RotationQuaternion.hpp>
+#include <aslam/backend/TransformationExpression.hpp>
+#include <memory>
 #include <sm/kinematics/Transformation.hpp>
 
 namespace aslam {
@@ -11,8 +13,11 @@ namespace backend {
 
 /**
  * @brief Design variable for SE(3) transformation (rotation + translation)
+ * This is a composite design variable consisting of:
+ * - RotationQuaternion for rotation
+ * - EuclideanPoint for translation
  */
-class TransformationDesignVariable : public DesignVariable {
+class TransformationDesignVariable {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -23,64 +28,63 @@ class TransformationDesignVariable : public DesignVariable {
 
   /**
    * @brief Constructor with initial transformation
+   * @param transformation Initial SE(3) transformation
+   * @param rotationActive Whether rotation is active for optimization
+   * @param translationActive Whether translation is active for optimization
    */
-  TransformationDesignVariable(const sm::kinematics::Transformation& T);
-
-  /**
-   * @brief Constructor with rotation and translation
-   */
-  TransformationDesignVariable(const Eigen::Matrix3d& C,
-                               const Eigen::Vector3d& t);
+  TransformationDesignVariable(
+      const sm::kinematics::Transformation& transformation,
+      bool rotationActive = true, bool translationActive = true);
 
   virtual ~TransformationDesignVariable() = default;
 
   /**
-   * @brief Get the transformation
+   * @brief Convert to TransformationExpression for optimization
    */
-  sm::kinematics::Transformation transformation() const;
+  TransformationExpression toExpression() const;
 
   /**
-   * @brief Get rotation matrix
+   * @brief Get the current transformation matrix
    */
-  Eigen::Matrix3d C() const { return T_.C(); }
+  Eigen::Matrix4d T() const;
 
   /**
-   * @brief Get translation vector
+   * @brief Get the number of design variables (always 2: rotation +
+   * translation)
    */
-  Eigen::Vector3d t() const { return T_.t(); }
+  int numDesignVariables() const { return 2; }
 
   /**
-   * @brief Get 4x4 transformation matrix
+   * @brief Get design variable by index
+   * @param i Index (0 = rotation, 1 = translation)
    */
-  Eigen::Matrix4d T() const { return T_.T(); }
+  std::shared_ptr<DesignVariable> getDesignVariable(int i);
 
   /**
-   * @brief Set the transformation
+   * @brief Get rotation design variable
    */
-  void setTransformation(const sm::kinematics::Transformation& T);
+  std::shared_ptr<RotationQuaternion> getRotation() { return q_; }
 
   /**
-   * @brief Set from rotation and translation
+   * @brief Get translation design variable
    */
-  void setParameters(const Eigen::Matrix3d& C, const Eigen::Vector3d& t);
+  std::shared_ptr<EuclideanPoint> getTranslation() { return t_; }
 
- protected:
-  /// \brief Update the design variable with a small perturbation
-  virtual void updateImplementation(const double* dp, int size) override;
+  /**
+   * @brief Set active status for rotation
+   */
+  void setRotationActive(bool active);
 
-  /// \brief what is the number of dimensions of the perturbation variable
-  virtual int minimalDimensionsImplementation() const override { return 6; }
-
-  /// \brief Get the current parameters (rotation vector + translation)
-  virtual void getParametersImplementation(
-      Eigen::MatrixXd& value) const override;
-
-  /// \brief Set the current parameters
-  virtual void setParametersImplementation(
-      const Eigen::MatrixXd& value) override;
+  /**
+   * @brief Set active status for translation
+   */
+  void setTranslationActive(bool active);
 
  private:
-  sm::kinematics::Transformation T_;
+  sm::kinematics::Transformation initial_T_;
+  std::shared_ptr<RotationQuaternion> q_;  // Rotation quaternion
+  std::shared_ptr<EuclideanPoint> t_;      // Translation vector
+  TransformationExpression expression_;    // Combined expression
 };
 
 }  // namespace backend

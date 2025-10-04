@@ -1,4 +1,9 @@
+#include <ceres/ceres.h>
+#include <Eigen/Core>
 #include <IccSensors.hpp>
+#include <algorithm>
+#include <any>
+#include <aslam/backend/BSplineMotionError.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/EuclideanPoint.hpp>
 #include <aslam/backend/OptimizationProblem.hpp>
@@ -6,16 +11,21 @@
 #include <aslam/backend/Optimizer2Options.hpp>
 #include <aslam/backend/RotationExpression.hpp>
 #include <aslam/backend/RotationQuaternion.hpp>
+#include <aslam/backend/SimpleReprojectionError.hpp>
 #include <aslam/backend/TransformationExpression.hpp>
 #include <aslam/cameras/CameraGeometry.hpp>
 #include <aslam/cameras/GridCalibrationTargetAprilgrid.hpp>
 #include <aslam/cameras/GridCalibrationTargetBase.hpp>
 #include <aslam/cameras/GridCalibrationTargetCheckerboard.hpp>
 #include <aslam/cameras/GridCalibrationTargetCirclegrid.hpp>
+#include <aslam/splines/BSplineDesignVariable.hpp>
+#include <aslam/splines/BSplinePoseDesignVariable.hpp>
+#include <bsplines/BSplinePose.hpp>
+#include <ceres/numeric_diff_cost_function.h>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <kalibr_backend/MatrixDesignVariable.hpp>
-#include <kalibr_backend/ScalarDesignVariable.hpp>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <kalibr_common/TargetExtractor.hpp>
 #include <kalibr_errorterms/AccelerometerError.hpp>
@@ -24,14 +34,19 @@
 #include <opencv2/highgui.hpp>
 #include <sm/kinematics/RotationVector.hpp>
 #include <sm/kinematics/transformations.hpp>
+#include <string>
 
+#include "IccCalibrator.hpp"
+#include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
+#include "aslam/backend/MEstimatorPolicies.hpp"
+#include "aslam/backend/Scalar.hpp"
+#include "bsplines/BSpline.hpp"
 #include "kalibr_common/ConfigReader.hpp"
+#include "kalibr_errorterms/EuclideanError.hpp"
+#include "sm/kinematics/Transformation.hpp"
+#include "sm/kinematics/quaternion_algebra.hpp"
 
 namespace kalibr {
-
-constexpr int CALIBRATION_GROUP_ID = 0;
-constexpr int HELPER_GROUP_ID = 1;
-
 // ============================================================================
 // IccCamera Implementation
 // ============================================================================
@@ -42,10 +57,8 @@ IccCamera::IccCamera(const CameraParameters& camConfig,
                      double reprojectionSigma, bool showCorners,
                      bool showReproj, bool showOneStep)
     : dataset_(dataset),
-      reprojectionSigma_(reprojectionSigma),
-      showCorners_(showCorners),
-      showReproj_(showReproj),
-      showOneStep_(showOneStep) {
+    camConfig_(camConfig),
+    targetConfig_(targetConfig){
   // Corner uncertainty
   cornerUncertainty_ = reprojectionSigma;
 
@@ -133,8 +146,8 @@ void IccCamera::setupCalibrationTarget(
   detectorOptions.plotCornerReprojection = showReproj;
   detectorOptions.filterCornerOutliers = true;
 
-  detector_ = std::make_shared<aslam::cameras::GridDetector>(camera_, grid,
-                                                             detectorOptions);
+  detector_ = std::make_shared<aslam::cameras::GridDetector>(
+      camera_->getGeometry(), grid, detectorOptions);
 
   std::cout << "Calibration target setup completed" << std::endl;
 }
@@ -166,7 +179,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
   const auto& imuData = imu.getImuData();
   aslam::backend::EuclideanExpression bias(Eigen::Vector3d::Zero());
   for (const auto& im : imuData) {
-    double tk = im.timestamp.toSec();
+    double tk = im.stamp.toSec();
 
     if (tk > poseSpline.t_min() && tk < poseSpline.t_max()) {
       // DV expressions
@@ -181,7 +194,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
 
       // Create gyroscope error term
       auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
-          omega_measured, im.omega.inverse(), omega_predicted, bias);
+          omega_measured, im.omegaInvR, omega_predicted, bias);
       problem->addErrorTerm(gerr);
     }
   }
@@ -219,7 +232,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
   // Estimate gravity as the mean specific force
   std::vector<Eigen::Vector3d> a_w_samples;
   for (const auto& im : imuData) {
-    double tk = im.timestamp.toSec();
+    double tk = im.stamp.toSec();
     if (tk > poseSpline.t_min() && tk < poseSpline.t_max()) {
       Eigen::Matrix3d C_w_b = poseSpline.orientation(tk);
       Eigen::Vector3d a_w = C_w_b * (R_i_c * (-im.alpha));
@@ -269,7 +282,7 @@ double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
 
   const auto& imuData = imu.getImuData();
   for (const auto& im : imuData) {
-    double tk = im.timestamp.toSec();
+    double tk = im.stamp.toSec();
 
     if (tk > poseSpline.t_min() && tk < poseSpline.t_max()) {
       // Get IMU measurements
@@ -330,7 +343,7 @@ double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
   if (imuData.size() > 1) {
     std::vector<double> times;
     for (const auto& im : imuData) {
-      times.push_back(im.timestamp.toSec());
+      times.push_back(im.stamp.toSec());
     }
 
     // Compute mean dt
@@ -459,101 +472,117 @@ bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
 }
 
 void IccCamera::addDesignVariables(aslam::backend::OptimizationProblem& problem,
-                                   bool noTimeCalibration,
-                                   bool estimateExtrinsics) {
+                                   bool noExtrinsics, bool noTimeCalibration,
+                                   size_t baselinedv_group_id) {
   // Add transformation design variables
-  if (estimateExtrinsics) {
-    dv_T_c_b_ = std::make_shared<aslam::backend::TransformationDesignVariable>(
-        T_extrinsic_);
-    dv_T_c_b_->setActive(true);
-    problem.addDesignVariable(dv_T_c_b_);
-    std::cout << "  Camera-IMU extrinsics enabled" << std::endl;
-  } else {
-    dv_T_c_b_ = std::make_shared<aslam::backend::TransformationDesignVariable>(
-        T_extrinsic_);
-    dv_T_c_b_->setActive(false);
-    std::cout << "  Camera-IMU extrinsics fixed" << std::endl;
+  auto active = !noExtrinsics;
+  this->dv_T_c_b_ =
+      std::make_shared<aslam::backend::TransformationDesignVariable>(
+          this->T_extrinsic_, active, active);
+  for (int i = 0; i < this->dv_T_c_b_->numDesignVariables(); ++i) {
+    problem.addDesignVariable(this->dv_T_c_b_->getDesignVariable(i).get(),
+                              baselinedv_group_id);
   }
 
-  // Add time offset design variable
-  if (!noTimeCalibration) {
-    dv_time_offset_ = std::make_shared<aslam::backend::ScalarDesignVariable>(
-        timeshiftCamToImuPrior_);
-    dv_time_offset_->setActive(true);
-    problem.addDesignVariable(dv_time_offset_);
-    std::cout << "  Camera time offset enabled" << std::endl;
-  } else {
-    dv_time_offset_ = std::make_shared<aslam::backend::ScalarDesignVariable>(
-        timeshiftCamToImuPrior_);
-    dv_time_offset_->setActive(false);
-    std::cout << "  Camera time offset fixed" << std::endl;
-  }
+  // Add the time delay design variable.
+  this->dv_time_offset_ = std::make_shared<aslam::backend::Scalar>(0.0);
+  this->dv_time_offset_->setActive(!noTimeCalibration);
+  problem.addDesignVariable(this->dv_time_offset_.get(), CALIBRATION_GROUP_ID);
 }
 
 void IccCamera::addCameraErrorTerms(
     aslam::backend::OptimizationProblem& problem,
-    const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>& poseDv,
-    bool useBlakeZissermanMest) {
-  std::cout << "  Adding camera error terms ("
-            << (useBlakeZissermanMest ? "M-estimator" : "squared") << ")..."
+    const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>&
+        poseSplineDv,
+    const aslam::backend::TransformationExpression& T_cN_b,
+    double blakeZissermanDf, double timeOffsetPadding) {
+  std::cout << "\nAdding camera error terms (" << dataset_.getTopic() << ")"
             << std::endl;
 
-  int num_error_terms = 0;
+  // Clear previous reprojection errors
+  allReprojectionErrors_.clear();
+  int totalErrorTerms = 0;
+
+  // Get reprojection error type from camera
+  // In C++, we use the camera geometry directly
 
   // Loop over all observations
   for (const auto& obs : observations_) {
-    double t_cam = obs.time().toSec();
+    // Build a transformation expression for the time
+    // frameTime = cameraTimeToImuTimeDv + obs.time() + timeshiftCamToImuPrior
+    auto frameTime = dv_time_offset_->toExpression() + obs.time().toSec() +
+                     timeshiftCamToImuPrior_;
+    double frameTimeScalar = frameTime.toScalar();
 
-    // Get time with offset
-    auto time_expression = dv_time_offset_->toExpression();
-    double t_corrected = t_cam;  // + time offset will be handled in expression
-
-    // Skip if outside spline range
-    if (t_corrected < poseDv->spline().getMinTime() ||
-        t_corrected > poseDv->spline().getMaxTime()) {
+    // As we are applying an initial time shift outside the optimization,
+    // we need to make sure that we don't add data outside the spline definition
+    if (frameTimeScalar <= poseSplineDv->spline().t_min() ||
+        frameTimeScalar >= poseSplineDv->spline().t_max()) {
       continue;
     }
 
-    // Get the transformation from target to body at this time
-    // T_b_w = pose_spline(t)
-    auto T_b_w_expr =
-        poseDv->toExpression(t_corrected, 0);  // 0 = position + orientation
+    // Get T_w_b: transformation from world to body at this time
+    auto T_w_b = poseSplineDv->transformationAtTime(
+        frameTime, timeOffsetPadding, timeOffsetPadding);
+    auto T_b_w = T_w_b.inverse();
 
-    // Get camera-to-body transformation expression
-    auto T_c_b_expr = dv_T_c_b_->toExpression();
+    // Calibration target coords to camera N coords
+    // T_b_w: from world to imu coords
+    // T_cN_b: from imu to camera N coords
+    // T_c_w = T_cN_b * T_b_w
+    auto T_c_w = T_cN_b * T_b_w;
 
-    // Compute T_c_w = T_c_b * T_b_w
-    auto T_c_w_expr = T_c_b_expr * T_b_w_expr;
+    // Get the image and target points corresponding to the frame
+    std::vector<cv::Point2f> imageCornerPoints;
+    std::vector<cv::Point3f> targetCornerPoints;
+    obs.getCornersImageFrame(imageCornerPoints);
+    obs.getCornersTargetFrame(targetCornerPoints);
 
-    // Get observed corners
-    const auto& imagePoints = obs.imagePoints();
-    const auto& targetPoints = obs.targetPoints();
+    // Corner uncertainty (inverse covariance)
+    Eigen::Matrix2d R =
+        Eigen::Matrix2d::Identity() * cornerUncertainty_ * cornerUncertainty_;
+    Eigen::Matrix2d invR = R.inverse();
 
-    // Add reprojection error term for each corner
-    for (size_t i = 0; i < imagePoints.size(); ++i) {
-      Eigen::Vector2d y = imagePoints[i];  // measured image point
-      Eigen::Vector4d p_target =
-          targetPoints[i];  // 3D target point (homogeneous)
+    // Setup an aslam frame (handles the distortion)
+    // Note: In C++ aslam, frame handling is done through the camera geometry
+    // We create error terms directly
 
-      // Create reprojection error
-      // This projects p_target through T_c_w and compares to y
-      auto err = std::make_shared<kalibr_errorterms::ReprojectionError>(
-          y, cornerUncertainty_, T_c_w_expr, p_target.head<3>(), geometry_);
+    // Store reprojection errors for this observation
+    std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> reprojectionErrors;
 
-      // Add M-estimator if requested
-      if (useBlakeZissermanMest) {
-        auto mestimator =
-            std::make_shared<aslam::backend::BlakeZissermanMEstimator>(
-                2.0 * cornerUncertainty_);  // threshold
-        err->setMEstimatorPolicy(mestimator);
+    // Add error term for each corner point
+    for (size_t pidx = 0; pidx < imageCornerPoints.size(); ++pidx) {
+      // Get measured image point
+      Eigen::Vector2d y(imageCornerPoints[pidx].x, imageCornerPoints[pidx].y);
+
+      // Get target point (add homogeneous coordinate)
+      Eigen::Vector4d targetPoint;
+      targetPoint << targetCornerPoints[pidx].x, targetCornerPoints[pidx].y,
+          targetCornerPoints[pidx].z, 1.0;
+
+      // Transform target point to camera frame
+      auto p = T_c_w * aslam::backend::HomogeneousExpression(targetPoint);
+
+      // Create reprojection error using camera's factory method
+      // 这里使用了之前存储的具体类型工厂 - 无需反射！
+      auto rerr = camera_->createReprojectionError(y, invR, p);
+
+      // Add Blake-Zisserman M-estimator if requested
+      if (blakeZissermanDf > 0.0) {
+        auto mest = std::make_shared<aslam::backend::BlakeZissermanMEstimator>(
+            blakeZissermanDf);
+        rerr->setMEstimatorPolicy(mest);
       }
 
-      problem.addErrorTerm(err);
-      num_error_terms++;
+      problem.addErrorTerm(rerr);
+      reprojectionErrors.push_back(rerr);
+      totalErrorTerms++;
     }
+
+    allReprojectionErrors_.push_back(reprojectionErrors);
   }
 
-  std::cout << "    Added " << num_error_terms << " camera error terms"
+  std::cout << "  Added " << totalErrorTerms << " camera error terms"
             << std::endl;
 }
 
@@ -563,7 +592,7 @@ void IccCamera::addCameraErrorTerms(
 
 IccCameraChain::IccCameraChain(
     const std::vector<CameraParameters>& camConfigs,
-    const TargetParameters& targetConfig,
+    const CalibrationTargetParameters& targetConfig,
     const std::vector<ImageDatasetReader>& datasets) {
   if (camConfigs.size() != datasets.size()) {
     throw std::runtime_error(
@@ -584,24 +613,19 @@ IccCameraChain::IccCameraChain(
 void IccCameraChain::addDesignVariables(
     aslam::backend::OptimizationProblem& problem, bool noTimeCalibration,
     bool noChainExtrinsics) {
-  // Add transformations between cameras
-  for (size_t i = 1; i < camList_.size(); ++i) {
-    // Create transformation design variable for cam[i] relative to cam[i-1]
-    auto T = std::make_shared<aslam::backend::TransformationDesignVariable>();
-    T->setActive(!noChainExtrinsics);
-    problem.addDesignVariable(T, CALIBRATION_GROUP_ID);
-    transformations_.push_back(T);
-  }
-
-  // Add time offset design variables
-  if (!noTimeCalibration) {
-    for (size_t i = 0; i < camList_.size(); ++i) {
-      auto timeOffset =
-          std::make_shared<aslam::backend::ScalarDesignVariable>(0.0);
-      timeOffset->setActive(true);
-      problem.addDesignVariable(timeOffset, CALIBRATION_GROUP_ID);
-      timeOffsets_.push_back(timeOffset);
+  // add the design variables (T(R,t) & time)  for all induvidual cameras
+  for (auto [camNr, cam] : std::ranges::views::enumerate(camList_)) {
+    bool noExtrinsics;
+    int baselinedv_group_id;
+    if (camNr == 0) {
+      noExtrinsics = false;
+      baselinedv_group_id = CALIBRATION_GROUP_ID;
+    } else {
+      noExtrinsics = noChainExtrinsics;
+      baselinedv_group_id = HELPER_GROUP_ID;
     }
+    cam->addDesignVariables(problem, noExtrinsics, noTimeCalibration,
+                            baselinedv_group_id);
   }
 }
 
@@ -614,152 +638,496 @@ void IccCameraChain::initFromCameraChain() {
 // IccImu Implementation
 // ============================================================================
 
-IccImu::IccImu(const ImuParameters& imuConfig, const ImuDatasetReader& dataset)
-    : dataset_(dataset), timeOffset_(0.0) {
-  // Load IMU data
-  imuData_ = dataset_.getAllMessages();
-
-  std::cout << "Initialized IMU with " << imuData_.size() << " measurements"
-            << std::endl;
+IccImu::ImuParameters::ImuParameters(const ::kalibr::ImuParameters& imuConfig, int imuNr)
+  : ::kalibr::ImuParameters("",true) {
+  data_ = imuConfig.getYamlDict();
+  data_["model"] = "calibrated";
+  imuNr_ = imuNr;
 }
 
-void IccImu::addDesignVariables(aslam::backend::OptimizationProblem& problem,
-                                const aslam::splines::BSplinePose& poseSpline) {
-  // Add transformation from IMU to body frame
-  T_i_b_Dv_ = std::make_shared<aslam::backend::TransformationDesignVariable>();
-  T_i_b_Dv_->setActive(true);
-  problem.addDesignVariable(T_i_b_Dv_, CALIBRATION_GROUP_ID);
-
-  // Add time offset design variable
-  timeOffsetDv_ =
-      std::make_shared<aslam::backend::ScalarDesignVariable>(timeOffset_);
-  timeOffsetDv_->setActive(true);
-  problem.addDesignVariable(timeOffsetDv_, CALIBRATION_GROUP_ID);
+void IccImu::ImuParameters::setImuPose(const sm::kinematics::Transformation& T_i_b) {
+  Eigen::MatrixXd t = T_i_b.T();
+  data_["T_i_b"] = std::vector<double>(t.data(), t.data() + t.size());
 }
 
-void IccImu::addErrorTerms(
-    aslam::backend::OptimizationProblem& problem,
-    const aslam::backend::BSplinePoseDesignVariable& poseDv,
-    const aslam::backend::EuclideanExpression& gravityExpression,
-    double gyroNoiseScale, double accelNoiseScale, double huberGyro,
-    double huberAccel) {
-  std::cout << "Adding IMU error terms..." << std::endl;
+void IccImu::ImuParameters::setTimeOffset(double time_offset) {
+  data_["time_offset"] = time_offset;
+}
 
-  // Add gyroscope error terms
-  for (const auto& measurement : imuData_) {
-    // Create gyro error term
-    // This would use GyroscopeError from kalibr_errorterms
+std::string IccImu::ImuParameters::formatIndented(const std::string& indent,std::vector<double> array) const {
+  // indent + str(np.array_str(np_array)).replace('\n',"\n"+indent)
+  std::string s = indent + "[";
+  bool first = true;
+  for (const auto& v : array) {
+    if (!first) {
+      s += ", ";
+    }
+    s += std::to_string(v);
+    first = false;
   }
+  s += "]";
+  return s;
+}
 
-  // Add accelerometer error terms
-  for (const auto& measurement : imuData_) {
-    // Create accel error term
-    // This would use AccelerometerError from kalibr_errorterms
+void IccImu::ImuParameters::printDetails(std::ostream& out) const {
+  out << "  Model: " << std::any_cast<std::string>(data_.at("model")) << std::endl;
+  ::kalibr::ImuParameters::printDetails(out);
+  out << "  T_ib (imu0 to imu" << imuNr_ << ")" << std::endl;
+  out << formatIndented("    ", std::any_cast<std::vector<double>>(data_.at("T_i_b"))) << std::endl;
+  out << "  time offset with respect to IMU0: " << std::any_cast<double>(data_.at("time_offset")) << " [s]" << std::endl;
+}
+
+void IccImu::loadImuData() {
+  std::cout << "Loading IMU data..." << std::endl;
+  Eigen::Matrix3d Rgyro = Eigen::Matrix3d::Identity() * this->gyroUncertaintyDiscrete_ * this->gyroUncertaintyDiscrete_;
+  Eigen::Matrix3d Raccel = Eigen::Matrix3d::Identity() * this->accelUncertaintyDiscrete_ * this->accelUncertaintyDiscrete_;
+
+  std::vector<ImuMeasurement> data;
+  for (auto [timestamp, omega, alpha] : dataset_.getAllMessages()) {
+    data.emplace_back(timestamp, omega, alpha, Rgyro, Raccel);
   }
-}
+  imuData_.swap(data);
 
-void IccImu::initBiasSplines(const aslam::splines::BSplinePose& poseSpline,
-                             int biasKnotsPerSecond, int splineOrder) {
-  std::cout << "Initializing bias splines..." << std::endl;
-
-  double t_min = poseSpline.getMinTime();
-  double t_max = poseSpline.getMaxTime();
-
-  // Create gyro bias spline (3D Euclidean spline)
-  // gyroBiasSpline_ = createBiasSpline(t_min, t_max, biasKnotsPerSecond,
-  // splineOrder);
-
-  // Create accel bias spline (3D Euclidean spline)
-  // accelBiasSpline_ = createBiasSpline(t_min, t_max, biasKnotsPerSecond,
-  // splineOrder);
-}
-
-// ============================================================================
-// IccScaledMisalignedImu Implementation
-// ============================================================================
-
-IccScaledMisalignedImu::IccScaledMisalignedImu(const ImuParameters& imuConfig,
-                                               const ImuDatasetReader& dataset)
-    : IccImu(imuConfig, dataset) {
-  // Initialize scale and misalignment matrices to identity
-  Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-
-  M_gyro_ = std::make_shared<aslam::backend::MatrixDesignVariable>(I);
-  M_accel_ = std::make_shared<aslam::backend::MatrixDesignVariable>(I);
-}
-
-void IccScaledMisalignedImu::addDesignVariables(
-    aslam::backend::OptimizationProblem& problem,
-    const aslam::splines::BSplinePose& poseSpline) {
-  // Call base class
-  IccImu::addDesignVariables(problem, poseSpline);
-
-  // Add scale/misalignment matrices
-  if (M_gyro_) {
-    M_gyro_->setActive(true);
-    problem.addDesignVariable(M_gyro_, CALIBRATION_GROUP_ID);
-  }
-
-  if (M_accel_) {
-    M_accel_->setActive(true);
-    problem.addDesignVariable(M_accel_, CALIBRATION_GROUP_ID);
+  if (imuData_.empty()) {
+    throw std::runtime_error("No IMU data loaded");
+  } else {
+    std::cout << "  Read " << imuData_.size() << " imu readings over "
+              << (imuData_.back().stamp.toSec() - imuData_.front().stamp.toSec())
+              << " seconds" << std::endl;
   }
 }
 
-void IccScaledMisalignedImu::addErrorTerms(
+IccImu::IccImu(const ::kalibr::ImuParameters& imuConfig,
+               const ImuDatasetReader& dataset, bool isReferenceImu,
+               bool estimateTimeDelay, int imuNr)
+    : isReferenceImu_(isReferenceImu),
+      estimateTimeDelay_(estimateTimeDelay),
+      dataset_(dataset),
+      imuConfig_(IccImu::ImuParameters(imuConfig, imuNr))
+{
+  auto accelerometerStatistics = imuConfig.getAccelerometerStatistics();
+  accelUncertaintyDiscrete_ = std::get<0>(accelerometerStatistics);
+  accelRandomWalk_ = std::get<1>(accelerometerStatistics);
+  accelUncertainty_ = std::get<2>(accelerometerStatistics);
+  auto gyroscopeStatistics = imuConfig.getGyroscopeStatistics();
+  gyroUncertaintyDiscrete_ = std::get<0>(gyroscopeStatistics);
+  gyroRandomWalk_ = std::get<1>(gyroscopeStatistics);
+  gyroUncertainty_ = std::get<2>(gyroscopeStatistics);
+  this->loadImuData();
+}
+
+void IccImu::addDesignVariables(aslam::backend::OptimizationProblem& problem) {
+  gyroBiasDv_ = std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(*gyroBias_);
+  accelBiasDv_ = std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(*accelBias_);
+
+  addSplineDesignVariables(
+      problem,
+      *std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_),
+      true, HELPER_GROUP_ID);
+  addSplineDesignVariables(
+      problem,
+      *std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_),
+      true, HELPER_GROUP_ID);
+  q_i_b_Dv_ = std::make_shared<aslam::backend::RotationQuaternion>(q_i_b_Prior_);
+  problem.addDesignVariable(q_i_b_Dv_.get(), HELPER_GROUP_ID);
+  q_i_b_Dv_->setActive(false);
+  r_b_Dv_ = std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
+  problem.addDesignVariable(r_b_Dv_.get(), HELPER_GROUP_ID);
+  r_b_Dv_->setActive(false);
+
+  if (!isReferenceImu_) {
+    q_i_b_Dv_->setActive(true);
+    r_b_Dv_->setActive(true);
+  }
+}
+
+void IccImu::addAccelerometerErrorTerms(
     aslam::backend::OptimizationProblem& problem,
-    const aslam::backend::BSplinePoseDesignVariable& poseDv,
-    const aslam::backend::EuclideanExpression& gravityExpression,
-    double gyroNoiseScale, double accelNoiseScale, double huberGyro,
-    double huberAccel) {
-  std::cout << "Adding scaled/misaligned IMU error terms..." << std::endl;
+    aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
+    const aslam::backend::EuclideanExpression& g_w, double mSigma,
+    double accelNoiseScale) {
+  std::cout << "\nAdding accelerometer error terms..." << std::endl;
+  double weight = 1.0 / (accelNoiseScale);
+  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
+  int num_skipped = 0;
 
-  // Similar to base class but multiply measurements by M matrices
+  std::shared_ptr<aslam::backend::MEstimator> mest;
+  if (mSigma > 0.0) {
+    mest = std::make_shared<aslam::backend::HuberMEstimator>(mSigma);
+  } else {
+    mest = std::make_shared<aslam::backend::NoMEstimator>();
+  }
+
+  for (const auto& im : imuData_) {
+    double tk = im.stamp.toSec() + timeOffset_;
+
+    if (tk > poseSplineDv.spline().t_min() &&
+        tk < poseSplineDv.spline().t_max()) {
+      auto C_b_w = poseSplineDv.orientation(tk).inverse();
+      auto a_w = poseSplineDv.linearAcceleration(tk);
+      auto b_i = std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_)->toEuclideanExpression(tk, 0);
+      auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
+      auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
+      auto C_i_b = q_i_b_Dv_->toExpression();
+      auto r_b = r_b_Dv_->toExpression();
+      auto a = C_i_b * (C_b_w * (a_w - g_w) + w_dot_b.cross(r_b) +
+                             w_b.cross(w_b.cross(r_b)));
+      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(im.alpha,im.alphaInvR * weight,a+b_i);
+      aerr->setMEstimatorPolicy(mest);
+      accelErrors.push_back(aerr);
+      problem.addErrorTerm(aerr);
+    } else {
+      num_skipped++;
+    }
+  }
+  std::cout << "  Added " << imuData_.size() - num_skipped << " of " << imuData_.size()
+            << " accelerometer error terms (skipped " << num_skipped
+            << " out-of-bounds measurements)" << std::endl;
+  accelErrors_.swap(accelErrors);
 }
 
-// ============================================================================
-// IccScaledMisalignedSizeEffectImu Implementation
-// ============================================================================
-
-IccScaledMisalignedSizeEffectImu::IccScaledMisalignedSizeEffectImu(
-    const ImuParameters& imuConfig, const ImuDatasetReader& dataset)
-    : IccScaledMisalignedImu(imuConfig, dataset) {
-  // Initialize eccentric mounting vectors to zero
-  r_x_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
-      Eigen::Vector3d::Zero());
-  r_y_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
-      Eigen::Vector3d::Zero());
-  r_z_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
-      Eigen::Vector3d::Zero());
-}
-
-void IccScaledMisalignedSizeEffectImu::addDesignVariables(
+void IccImu::addGyroscopeErrorTerms(
     aslam::backend::OptimizationProblem& problem,
-    const aslam::splines::BSplinePose& poseSpline) {
-  // Call base class
-  IccScaledMisalignedImu::addDesignVariables(problem, poseSpline);
+    aslam::splines::BSplinePoseDesignVariable& poseSplineDv, double mSigma,
+    double gyroNoiseScale, const aslam::backend::EuclideanExpression&) {
+  std::cout << "\nAdding gyroscope error terms..." << std::endl;
+  double weight = 1.0 / (gyroNoiseScale);
+  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors;
+  int num_skipped = 0;
 
-  // Add size effect parameters
-  r_x_->setActive(true);
-  problem.addDesignVariable(r_x_, CALIBRATION_GROUP_ID);
+  std::shared_ptr<aslam::backend::MEstimator> mest;
+  if (mSigma > 0.0) {
+    mest = std::make_shared<aslam::backend::HuberMEstimator>(mSigma);
+  } else {
+    mest = std::make_shared<aslam::backend::NoMEstimator>();
+  }
 
-  r_y_->setActive(true);
-  problem.addDesignVariable(r_y_, CALIBRATION_GROUP_ID);
+  for (const auto& im : imuData_) {
+    double tk = im.stamp.toSec() + timeOffset_;
 
-  r_z_->setActive(true);
-  problem.addDesignVariable(r_z_, CALIBRATION_GROUP_ID);
+    if (tk > poseSplineDv.spline().t_min() &&
+        tk < poseSplineDv.spline().t_max()) {
+      auto b_i = std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_)->toEuclideanExpression(tk, 0);
+      auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
+      auto C_i_b = q_i_b_Dv_->toExpression();
+      auto w = C_i_b * w_b;
+      auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+          im.omega, im.omegaInvR * weight, w + b_i);
+      gerr->setMEstimatorPolicy(mest);
+      gyroErrors.push_back(gerr);
+      problem.addErrorTerm(gerr);
+    } else {
+      num_skipped++;
+    }
+  }
+  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
+            << imuData_.size() << " accelerometer error terms (skipped "
+            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  gyroErrors_.swap(gyroErrors);
 }
 
-void IccScaledMisalignedSizeEffectImu::addErrorTerms(
-    aslam::backend::OptimizationProblem& problem,
-    const aslam::backend::BSplinePoseDesignVariable& poseDv,
-    const aslam::backend::EuclideanExpression& gravityExpression,
-    double gyroNoiseScale, double accelNoiseScale, double huberGyro,
-    double huberAccel) {
-  std::cout << "Adding size effect IMU error terms..." << std::endl;
+void IccImu::initBiasSplines(const bsplines::BSplinePose& poseSpline,
+                             int splineOrder, int biasKnotsPerSecond) {
+  auto start = poseSpline.t_min();
+  auto end = poseSpline.t_max();
+  auto seconds = end - start;
+  int knots = static_cast<int>(std::round(seconds * biasKnotsPerSecond));
+  std::cout << "\nInitializing the bias splines with " << knots << " knots" << std::endl;
 
-  // Use AccelerometerErrorEccentric which includes size effect terms
-  // See AccelerometerError.cpp for reference
+  gyroBias_ = std::make_shared<bsplines::BSpline>(splineOrder);
+  gyroBias_->initConstantSpline(start, end, knots, GyroBiasPrior_);
+
+  accelBias_ = std::make_shared<bsplines::BSpline>(splineOrder);
+  accelBias_->initConstantSpline(start, end, knots, Eigen::Vector3d::Zero());
 }
 
-}  // namespace kalibr
+void IccImu::addBiasMotionTerms(
+    aslam::backend::OptimizationProblem& problem) {
+  Eigen::Matrix3d Wgyro = Eigen::Matrix3d::Identity() / (gyroRandomWalk_ * gyroRandomWalk_);
+  Eigen::Matrix3d Waccel = Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
+  auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
+      aslam::splines::EuclideanBSplineDesignVariable>>(
+      std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_).get(),
+      Wgyro);
+  problem.addErrorTerm(gyroBiasMotionErr);
+  auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
+      aslam::splines::EuclideanBSplineDesignVariable>>(
+      std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_).get(),
+      Waccel);
+  problem.addErrorTerm(accelBiasMotionErr);
+}
+
+sm::kinematics::Transformation IccImu::getTransformationFromBodyToImu() const {
+  if (isReferenceImu_) {
+    return sm::kinematics::Transformation();
+  } else {
+    return sm::kinematics::Transformation(sm::kinematics::r2quat(q_i_b_Dv_->toRotationMatrix()),-(q_i_b_Dv_->toRotationMatrix()*r_b_Dv_->toEuclidean()));
+  }
+}
+
+void IccImu::findOrientationPrior(const ImuDatasetReader& referenceImu) {
+  std::cout << "\nEstimating imu-imu rotation initial guess..." << std::endl;
+  auto problem = std::make_shared<aslam::backend::OptimizationProblem>();
+  auto q_i_b_Dv = std::make_shared<aslam::backend::RotationQuaternion>(
+      Eigen::Matrix3d::Identity().eval());
+  q_i_b_Dv->setActive(true);
+  problem->addDesignVariable(q_i_b_Dv);
+
+  auto startTime = imuData_.front().stamp.toSec();
+  auto endTime = imuData_.back().stamp.toSec();
+  int knotsPerSecond = 50;
+  int knots = static_cast<int>(std::round((endTime - startTime) * knotsPerSecond));
+
+  auto angularVelocity = bsplines::BSpline(3);
+  angularVelocity.initConstantSpline(startTime, endTime, knots, Eigen::Vector3d::Zero());
+  auto angularVelocityDv = std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(angularVelocity);
+
+  for (size_t i = 0; i < angularVelocityDv->numDesignVariables(); ++i) {
+    std::shared_ptr<aslam::backend::DesignVariable> dv(angularVelocityDv->designVariable(i));
+    dv->setActive(true);
+    problem->addDesignVariable(dv);
+  }
+  auto referenceGyroBiasDv = std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
+  referenceGyroBiasDv->setActive(true);
+  problem->addDesignVariable(referenceGyroBiasDv);
+
+  for (const auto& im : imuData_) {
+    double tk = im.stamp.toSec();
+    if (tk > angularVelocity.t_min() && tk < angularVelocity.t_max()) {
+      auto bias = referenceGyroBiasDv->toExpression();
+
+      auto omega_predicted = angularVelocityDv->toEuclideanExpression(tk, 0);
+      auto omega_measured = im.omega;
+
+      auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
+          omega_measured, im.omegaInvR, omega_predicted, bias);
+      problem->addErrorTerm(gerr);
+    }
+  }
+
+  auto options = aslam::backend::Optimizer2Options();
+  options.verbose = false;
+  options.linearSystemSolver =
+      std::make_shared<aslam::backend::BlockCholeskyLinearSystemSolver>();
+  options.nThreads = 2;
+  options.convergenceDeltaX = 1e-4;
+  options.convergenceDeltaJ = 1;
+  options.maxIterations = 50;
+
+  auto optimizer = aslam::backend::Optimizer2(options);
+  optimizer.setProblem(problem);
+
+  try {
+    optimizer.optimize();
+  } catch (std::exception& e) {
+    std::cerr << "Failed to obtain initial guess for the relative orientation!" << std::endl;
+    throw e;
+  }
+
+  std::function<Eigen::VectorXd(double)> referenceAbsoluteOmega =
+      [this,&angularVelocity,&angularVelocityDv](double dt = 0.0) {
+        std::vector<double> norms;
+        for (const auto& im : imuData_) {
+          double t = im.stamp.toSec() + dt;
+          if (t > angularVelocity.t_min() && t < angularVelocity.t_max()) {
+            norms.push_back(angularVelocityDv->toEuclidean(t, 0).norm());
+          }
+        }
+        return Eigen::Map<Eigen::VectorXd>(norms.data(),norms.size());
+      };
+
+  std::function<Eigen::VectorXd(double)> absoluteOmega =
+      [this, &angularVelocity](double dt = 0.0) {
+        std::vector<double> norms;
+        for (const auto& im : imuData_) {
+          double t = im.stamp.toSec() + dt;
+          if (t > angularVelocity.t_min() && t < angularVelocity.t_max()) {
+            norms.push_back(im.omega.norm());
+          }
+        }
+        return Eigen::Map<Eigen::VectorXd>(norms.data(), norms.size());
+      };
+  if (referenceAbsoluteOmega(0.0).size() == 0 || absoluteOmega(0.0).size() == 0) {
+    throw std::runtime_error(
+        "No overlapping IMU data for orientation prior estimation");
+  }
+
+    auto corr = [](const Eigen::VectorXd& a, const Eigen::VectorXd& v) {
+      const int n = a.size();
+      const int m = v.size();
+      const int outLen = n + m - 1;
+
+      Eigen::VectorXd out = Eigen::VectorXd::Zero(outLen);
+
+      // 滑动点积
+      for (int lag = 0; lag < outLen; ++lag) {
+        int i0 = std::max(0, lag - m + 1);  // a 的起始下标
+        int j0 = std::max(0, m - lag - 1);  // v 的起始下标
+        int span = std::min(lag + 1, n) - i0;
+
+        for (int k = 0; k < span; ++k) {
+          out[lag] += a[i0 + k] * v[j0 + k];
+        }
+      }
+      return out;
+    }(referenceAbsoluteOmega(0.0),
+       absoluteOmega(0.0));
+
+    Eigen::Index discrete_shift;
+    corr.maxCoeff(&discrete_shift);
+
+    std::vector<double> times;
+    for (auto im: imuData_){
+      times.push_back(im.stamp.toSec());
+    }
+    auto dT = (times.back() - times.front()) / (times.size() - 1);
+    auto shift = discrete_shift * dT;
+
+    if (estimateTimeDelay_ && !isReferenceImu_) {
+      ceres::Problem problem;
+      problem.AddResidualBlock(
+          new ceres::NumericDiffCostFunction<ShiftCost, ceres::CENTRAL, 1, 1>(
+              new ShiftCost(referenceAbsoluteOmega, absoluteOmega)),
+          nullptr, &shift);
+      auto options = ceres::Solver::Options();
+      options.max_num_iterations = 100;
+      options.linear_solver_type = ceres::DENSE_QR;
+      options.minimizer_progress_to_stdout = false;
+      ceres::Solver::Summary summary;
+      ceres::Solve(options, &problem, &summary);
+      timeOffset_ = shift;
+    }
+
+    std::cout << "Temporal correction with respect to reference IMU " <<std::endl;
+    std::cout << timeOffset_ << "[s]";
+    if (!estimateTimeDelay_) {
+      std::cout << " (this offset is not accounted for in the calibration)" << std::endl;
+    } else {
+      std::cout <<std::endl;
+    }
+
+    gyroBiasDv_ = std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
+    std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_)->setActive(true);
+    problem->addDesignVariable(
+        std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_));
+    for (auto &im : imuData_) {
+      auto tk = im.stamp.toSec() + timeOffset_;
+      if (tk > angularVelocity.t_min() && tk < angularVelocity.t_max()) {
+        auto C_i_b = q_i_b_Dv->toExpression();
+        auto bias = std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_)->toExpression();
+
+        auto omega_predicted = C_i_b * angularVelocityDv->toEuclideanExpression(tk, 0);
+        auto omega_measured = im.omega;
+
+        auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
+            omega_measured, im.omegaInvR, omega_predicted, bias);
+        problem->addErrorTerm(gerr);
+      }
+    }
+
+    try {
+      optimizer.optimize();
+    } catch (std::exception& e) {
+      std::cerr << "Failed to obtain initial guess for the relative orientation!" << std::endl;
+      throw e;
+    }
+
+    std::cout << "Estimated imu to reference imu Rotation: " << std::endl;
+    std::cout << q_i_b_Dv->toRotationMatrix() << std::endl;
+
+    q_i_b_Prior_ = sm::kinematics::r2quat(q_i_b_Dv->toRotationMatrix());
+  };
+
+    // ============================================================================
+    // IccScaledMisalignedImu Implementation
+    // ============================================================================
+
+    // IccScaledMisalignedImu::IccScaledMisalignedImu(const ImuParameters&
+    // imuConfig,
+    //                                                const ImuDatasetReader&
+    //                                                dataset)
+    //     : IccImu(imuConfig, dataset) {
+    //   // Initialize scale and misalignment matrices to identity
+    //   Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+
+    //   M_gyro_ = std::make_shared<aslam::backend::MatrixDesignVariable>(I);
+    //   M_accel_ = std::make_shared<aslam::backend::MatrixDesignVariable>(I);
+    // }
+
+    // void IccScaledMisalignedImu::addDesignVariables(
+    //     aslam::backend::OptimizationProblem& problem,
+    //     const aslam::splines::BSplinePose& poseSpline) {
+    //   // Call base class
+    //   IccImu::addDesignVariables(problem, poseSpline);
+
+    //   // Add scale/misalignment matrices
+    //   if (M_gyro_) {
+    //     M_gyro_->setActive(true);
+    //     problem.addDesignVariable(M_gyro_, CALIBRATION_GROUP_ID);
+    //   }
+
+    //   if (M_accel_) {
+    //     M_accel_->setActive(true);
+    //     problem.addDesignVariable(M_accel_, CALIBRATION_GROUP_ID);
+    //   }
+    // }
+
+    // void IccScaledMisalignedImu::addErrorTerms(
+    //     aslam::backend::OptimizationProblem& problem,
+    //     const aslam::backend::BSplinePoseDesignVariable& poseDv,
+    //     const aslam::backend::EuclideanExpression& gravityExpression,
+    //     double gyroNoiseScale, double accelNoiseScale, double huberGyro,
+    //     double huberAccel) {
+    //   std::cout << "Adding scaled/misaligned IMU error terms..." <<
+    //   std::endl;
+
+    //   // Similar to base class but multiply measurements by M matrices
+    // }
+
+    // //
+    // ============================================================================
+    // // IccScaledMisalignedSizeEffectImu Implementation
+    // //
+    // ============================================================================
+
+    // IccScaledMisalignedSizeEffectImu::IccScaledMisalignedSizeEffectImu(
+    //     const ImuParameters& imuConfig, const ImuDatasetReader& dataset)
+    //     : IccScaledMisalignedImu(imuConfig, dataset) {
+    //   // Initialize eccentric mounting vectors to zero
+    //   r_x_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
+    //       Eigen::Vector3d::Zero());
+    //   r_y_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
+    //       Eigen::Vector3d::Zero());
+    //   r_z_ = std::make_shared<aslam::backend::EuclideanDesignVariable>(
+    //       Eigen::Vector3d::Zero());
+    // }
+
+    // void IccScaledMisalignedSizeEffectImu::addDesignVariables(
+    //     aslam::backend::OptimizationProblem& problem,
+    //     const aslam::splines::BSplinePose& poseSpline) {
+    //   // Call base class
+    //   IccScaledMisalignedImu::addDesignVariables(problem, poseSpline);
+
+    //   // Add size effect parameters
+    //   r_x_->setActive(true);
+    //   problem.addDesignVariable(r_x_, CALIBRATION_GROUP_ID);
+
+    //   r_y_->setActive(true);
+    //   problem.addDesignVariable(r_y_, CALIBRATION_GROUP_ID);
+
+    //   r_z_->setActive(true);
+    //   problem.addDesignVariable(r_z_, CALIBRATION_GROUP_ID);
+    // }
+
+    // void IccScaledMisalignedSizeEffectImu::addErrorTerms(
+    //     aslam::backend::OptimizationProblem& problem,
+    //     const aslam::backend::BSplinePoseDesignVariable& poseDv,
+    //     const aslam::backend::EuclideanExpression& gravityExpression,
+    //     double gyroNoiseScale, double accelNoiseScale, double huberGyro,
+    //     double huberAccel) {
+    //   std::cout << "Adding size effect IMU error terms..." << std::endl;
+
+    //   // Use AccelerometerErrorEccentric which includes size effect terms
+    //   // See AccelerometerError.cpp for reference
+    // }
+  }  // namespace kalibr
