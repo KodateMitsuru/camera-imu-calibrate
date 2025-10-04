@@ -3,6 +3,7 @@
 
 #include <Eigen/Core>
 #include <aslam/backend/DesignVariable.hpp>
+#include <aslam/backend/MatrixBasic.hpp>
 #include <aslam/backend/OptimizationProblem.hpp>
 #include <aslam/backend/Scalar.hpp>
 #include <aslam/cameras/CameraGeometryBase.hpp>
@@ -12,7 +13,6 @@
 #include <bsplines/BSplinePose.hpp>
 #include <cstddef>
 #include <fstream>
-#include <kalibr_backend/MatrixDesignVariable.hpp>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <kalibr_common/ConfigReader.hpp>
 #include <kalibr_common/ImageDatasetReader.hpp>
@@ -25,6 +25,7 @@
 
 #include "IccCalibrator.hpp"
 #include "aslam/backend/EuclideanPoint.hpp"
+#include "aslam/backend/RotationQuaternion.hpp"
 #include "sm/kinematics/Transformation.hpp"
 
 namespace kalibr {
@@ -207,6 +208,9 @@ class IccImu {
           alphaR(Raccel),
           alphaInvR(Raccel.inverse()) {}
   };
+  virtual void updateImuConfig();
+
+  const ImuParameters& getImuConfig();
 
   void loadImuData();
 
@@ -242,7 +246,7 @@ class IccImu {
 
   sm::kinematics::Transformation getTransformationFromBodyToImu() const;
 
-  void findOrientationPrior(const ImuDatasetReader& referenceImu);
+  void findOrientationPrior(const IccImu& referenceImu);
 
   // Getters
   const ImuDatasetReader& getDataset() const { return dataset_; }
@@ -306,54 +310,94 @@ class IccImu {
       };
 };
 
-// /**
-//  * @brief IMU with scale and misalignment
-//  */
-// class IccScaledMisalignedImu : public IccImu {
-//  public:
-//   IccScaledMisalignedImu(const ImuParameters& imuConfig,
-//                          const ImuDatasetReader& dataset);
+/**
+ * @brief IMU with scale and misalignment
+ */
+class IccScaledMisalignedImu : public IccImu {
+ public:
+  class ImuParameters : public ::kalibr::IccImu::ImuParameters {
+   public:
+    ImuParameters() = delete;
+    explicit ImuParameters(const ::kalibr::ImuParameters& imuConfig, int imuNr);
+    void printDetails(std::ostream& ofs = std::cout) const;
+    void setIntrisicsMatrices(const Eigen::Matrix3d& M_accel,
+                              const Eigen::Matrix3d& C_gyro_i,
+                              const Eigen::Matrix3d& M_gyro,
+                              const Eigen::Matrix3d& Ma_gyro);
+  };
 
-//   void addDesignVariables(aslam::backend::OptimizationProblem& problem,
-//                           const bsplines::BSplinePose& poseSpline) override;
+  IccScaledMisalignedImu(const ::kalibr::ImuParameters& imuConfig,
+                         const ImuDatasetReader& dataset,
+                         bool isReferenceImu = true,
+                         bool estimateTimeDelay = true, int imuNr = 0);
 
-//   void addErrorTerms(
-//       aslam::backend::OptimizationProblem& problem,
-//       const aslam::splines::BSplinePoseDesignVariable& poseDv,
-//       const aslam::backend::EuclideanExpression& gravityExpression,
-//       double gyroNoiseScale = 1.0, double accelNoiseScale = 1.0,
-//       double huberGyro = -1.0, double huberAccel = -1.0) override;
+  void updateImuConfig() override;
 
-//  protected:
-//   // Scale and misalignment matrices
-//   std::shared_ptr<aslam::backend::MatrixDesignVariable> M_gyro_;
-//   std::shared_ptr<aslam::backend::MatrixDesignVariable> M_accel_;
-// };
+  const ImuParameters& getImuConfig();
 
-// /**
-//  * @brief IMU with scale, misalignment, and size effect
-//  */
-// class IccScaledMisalignedSizeEffectImu : public IccScaledMisalignedImu {
-//  public:
-//   IccScaledMisalignedSizeEffectImu(const ImuParameters& imuConfig,
-//                                    const ImuDatasetReader& dataset);
+  void addDesignVariables(aslam::backend::OptimizationProblem& problem) override;
 
-//   void addDesignVariables(aslam::backend::OptimizationProblem& problem,
-//                           const bsplines::BSplinePose& poseSpline) override;
+  void addAccelerometerErrorTerms(
+      aslam::backend::OptimizationProblem& problem,
+      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
+      const aslam::backend::EuclideanExpression& g_w, double mSigma = 0.0,
+      double accelNoiseScale = 1.0) override;
+  
+  void addGyroscopeErrorTerms(
+      aslam::backend::OptimizationProblem& problem,
+      aslam::splines::BSplinePoseDesignVariable& poseSplineDv, double mSigma = 0.0,
+      double gyroNoiseScale = 1.0,const aslam::backend::EuclideanExpression& g_w=aslam::backend::EuclideanExpression(Eigen::Vector3d(0,0,0))) override;
 
-//   void addErrorTerms(
-//       aslam::backend::OptimizationProblem& problem,
-//       const aslam::splines::BSplinePoseDesignVariable& poseDv,
-//       const aslam::backend::EuclideanExpression& gravityExpression,
-//       double gyroNoiseScale = 1.0, double accelNoiseScale = 1.0,
-//       double huberGyro = -1.0, double huberAccel = -1.0) override;
+ protected:
+  // Scale and misalignment matrices
+  std::shared_ptr<aslam::backend::RotationQuaternion> q_gyro_i_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_gyro_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> M_accel_gyro_Dv_;
+  ImuParameters imuConfig_;
+};
 
-//  private:
-//   // Size effect parameters (eccentric mounting)
-//   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_x_;
-//   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_y_;
-//   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> r_z_;
-// };
+/**
+ * @brief IMU with scale, misalignment, and size effect
+ */
+class IccScaledMisalignedSizeEffectImu : public IccScaledMisalignedImu {
+ public:
+  class ImuParameters : public ::kalibr::IccScaledMisalignedImu::ImuParameters {
+   public:
+    ImuParameters() = delete;
+    explicit ImuParameters(const ::kalibr::ImuParameters& imuConfig, int imuNr);
+    void printDetails(std::ostream& ofs = std::cout) const;
+    void setAccelerometerLeverArms(const Eigen::Vector3d& rx_i,
+                                 const Eigen::Vector3d& ry_i,
+                                 const Eigen::Vector3d& rz_i);
+  };
+  IccScaledMisalignedSizeEffectImu(const ::kalibr::ImuParameters& imuConfig,
+                         const ImuDatasetReader& dataset,
+                         bool isReferenceImu = true,
+                         bool estimateTimeDelay = true, int imuNr = 0);
+
+  void updateImuConfig() override;
+
+  const ImuParameters& getImuConfig();
+
+  void addDesignVariables(aslam::backend::OptimizationProblem& problem) override;
+
+  void addAccelerometerErrorTerms(
+      aslam::backend::OptimizationProblem& problem,
+      aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
+      const aslam::backend::EuclideanExpression& g_w, double mSigma = 0.0,
+      double accelNoiseScale = 1.0) override;
+
+ private:
+  // Size effect parameters (eccentric mounting)
+  std::shared_ptr<aslam::backend::EuclideanPoint> rx_i_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> ry_i_Dv_;
+  std::shared_ptr<aslam::backend::EuclideanPoint> rz_i_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Ix_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Iy_Dv_;
+  std::shared_ptr<aslam::backend::MatrixBasic> Iz_Dv_;
+  ImuParameters imuConfig_;
+};
 
 }  // namespace kalibr
 
