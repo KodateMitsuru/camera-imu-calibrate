@@ -9,17 +9,17 @@
 namespace kalibr {
 
 /**
- * @brief Structure to hold a single IMU measurement
+ * @brief Structure to hold a single IMU data
  */
-struct ImuMeasurement {
+struct ImuData {
   aslam::Time timestamp;
   Eigen::Vector3d omega;  // Angular velocity (rad/s)
   Eigen::Vector3d alpha;  // Linear acceleration (m/s^2)
 
-  ImuMeasurement() = default;
+  ImuData() = default;
 
-  ImuMeasurement(const aslam::Time& ts, const Eigen::Vector3d& w,
-                 const Eigen::Vector3d& a)
+  ImuData(const aslam::Time& ts, const Eigen::Vector3d& w,
+          const Eigen::Vector3d& a)
       : timestamp(ts), omega(w), alpha(a) {}
 };
 
@@ -34,7 +34,7 @@ class ImuDatasetReaderIterator {
   // Iterator operations
   bool operator!=(const ImuDatasetReaderIterator& other) const;
   ImuDatasetReaderIterator& operator++();
-  ImuMeasurement operator*() const;
+  ImuData operator*() const;
 
  private:
   const class ImuDatasetReader* dataset_;
@@ -80,7 +80,7 @@ class ImuDatasetReader {
    * @brief Get IMU measurement at specific index
    * @return IMU measurement with timestamp, omega, and alpha
    */
-  ImuMeasurement getMessage(size_t idx) const;
+  ImuData getMessage(size_t idx) const;
 
   /**
    * @brief Get timestamp at specific index
@@ -95,7 +95,7 @@ class ImuDatasetReader {
   /**
    * @brief Get all measurements
    */
-  std::vector<ImuMeasurement> getAllMessages() const;
+  std::vector<ImuData> getAllMessages() const;
 
   /**
    * @brief Iterator support for range-based for loops
@@ -136,7 +136,7 @@ class ImuDatasetReader {
   bool detectCSVFormat(const std::vector<std::string>& header);
 
   std::string csvFile_;
-  std::vector<ImuMeasurement> measurements_;  // All measurements
+  std::vector<ImuData> measurements_;  // All measurements
   std::vector<size_t> indices_;               // Valid indices after filtering
   std::vector<size_t> shuffledIndices_;       // For shuffled reading
 

@@ -3,10 +3,23 @@
 
 #include <Eigen/Dense>
 #include <aslam/cameras/CameraGeometryBase.hpp>
+#include <aslam/backend/ErrorTerm.hpp>
+#include <aslam/backend/HomogeneousExpression.hpp>
+#include <functional>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
+#include <any>
+
+// Forward declarations
+// namespace aslam {
+// namespace backend {
+// class ErrorTerm;
+// class HomogeneousExpression;
+// }  // namespace backend
+// }  // namespace aslam
 
 namespace kalibr {
 
@@ -40,13 +53,14 @@ enum class TargetType { Aprilgrid, Checkerboard, Circlegrid };
  */
 class ParametersBase {
  public:
-  ParametersBase(const std::string& yamlFile, const std::string& name);
+  using DictType = std::unordered_map<std::string, std::any>;
+  ParametersBase(const std::string& yamlFile, const std::string& name, bool createYaml = false);
   virtual ~ParametersBase() = default;
 
   /**
    * @brief Read YAML file
    */
-  void readYaml();
+  DictType readYaml();
 
   /**
    * @brief Write to YAML file
@@ -56,7 +70,9 @@ class ParametersBase {
   /**
    * @brief Get YAML file path
    */
-  std::string getYamlFile() const { return yamlFile_; }
+  DictType getYamlDict() const;
+
+  void setYamlDict(const DictType& dict);
 
  protected:
   /**
@@ -66,7 +82,7 @@ class ParametersBase {
 
   std::string yamlFile_;
   std::string name_;
-  cv::FileStorage fs_;
+  DictType data_;
 };
 
 /**
@@ -74,7 +90,7 @@ class ParametersBase {
  */
 class CameraParameters : public ParametersBase {
  public:
-  explicit CameraParameters(const std::string& yamlFile);
+  explicit CameraParameters(const std::string& yamlFile,bool createYaml = false);
 
   // Accessors
   std::string getImageFolder() const;
@@ -101,12 +117,6 @@ class CameraParameters : public ParametersBase {
   void checkDistortion(DistortionModel model,
                        const std::vector<double>& coeffs) const;
   void checkResolution(const Eigen::Vector2i& resolution) const;
-
-  // Convert between enum and string
-  static std::string cameraModelToString(CameraModel model);
-  static CameraModel stringToCameraModel(const std::string& str);
-  static std::string distortionModelToString(DistortionModel model);
-  static DistortionModel stringToDistortionModel(const std::string& str);
 };
 
 /**
@@ -114,7 +124,7 @@ class CameraParameters : public ParametersBase {
  */
 class ImuParameters : public ParametersBase {
  public:
-  explicit ImuParameters(const std::string& yamlFile);
+  explicit ImuParameters(const std::string& yamlFile, bool createYaml = false);
 
   // Accessors
   std::string getCsvFile() const;
@@ -146,7 +156,8 @@ class ImuParameters : public ParametersBase {
  */
 class CalibrationTargetParameters : public ParametersBase {
  public:
-  explicit CalibrationTargetParameters(const std::string& yamlFile);
+  explicit CalibrationTargetParameters(const std::string& yamlFile,
+                                       bool createYaml = false);
 
   // Accessors
   TargetType getTargetType() const;
@@ -183,9 +194,6 @@ class CalibrationTargetParameters : public ParametersBase {
 
  private:
   void checkTargetType(TargetType type) const;
-
-  static std::string targetTypeToString(TargetType type);
-  static TargetType stringToTargetType(const std::string& str);
 };
 
 /**
@@ -195,7 +203,7 @@ class CalibrationTargetParameters : public ParametersBase {
  */
 class CameraChainParameters : public ParametersBase {
  public:
-  explicit CameraChainParameters(const std::string& yamlFile);
+  explicit CameraChainParameters(const std::string& yamlFile, bool createYaml = false);
 
   // Accessors
   size_t numCameras() const;
@@ -204,12 +212,13 @@ class CameraChainParameters : public ParametersBase {
 
   // Extrinsics from previous camera to this camera (cam_n to cam_{n-1})
   // Not valid for cam0 (base camera)
-  Eigen::Matrix4d getExtrinsicsLastCamToHere(size_t camIdx) const;
-  void setExtrinsicsLastCamToHere(size_t camIdx, const Eigen::Matrix4d& T);
+  sm::kinematics::Transformation getExtrinsicsLastCamToHere(
+      size_t camIdx) const;
+  void setExtrinsicsLastCamToHere(size_t camIdx, const sm::kinematics::Transformation& T);
 
   // Extrinsics from IMU to camera
-  Eigen::Matrix4d getExtrinsicsImuToCam(size_t camIdx) const;
-  void setExtrinsicsImuToCam(size_t camIdx, const Eigen::Matrix4d& T);
+  sm::kinematics::Transformation getExtrinsicsImuToCam(size_t camIdx) const;
+  void setExtrinsicsImuToCam(size_t camIdx, const sm::kinematics::Transformation& T);
 
   // Time shift between camera and IMU (t_imu = t_cam + shift)
   double getTimeshiftCamImu(size_t camIdx) const;
@@ -224,8 +233,6 @@ class CameraChainParameters : public ParametersBase {
 
  private:
   void checkCameraIndex(size_t camIdx) const;
-
-  mutable std::vector<std::shared_ptr<CameraParameters>> cameraCache_;
 };
 
 /**
@@ -254,10 +261,32 @@ class AslamCamera {
     return geometry_;
   }
 
+  /**
+   * @brief Create reprojection error term with correct concrete type
+   *
+   * This method uses the stored concrete geometry type to create
+   * a properly typed SimpleReprojectionError without needing reflection.
+   *
+   * @param measurement The measured 2D image point
+   * @param invR The inverse measurement covariance
+   * @param point The 3D point expression in camera coordinates
+   * @return Shared pointer to the error term
+   */
+  std::shared_ptr<aslam::backend::ErrorTerm> createReprojectionError(
+      const Eigen::Vector2d& measurement, const Eigen::Matrix2d& invR,
+      const aslam::backend::HomogeneousExpression& point) const;
+
  private:
   AslamCamera() = default;
 
   std::shared_ptr<aslam::cameras::CameraGeometryBase> geometry_;
+
+  // Store the concrete camera type for dispatch
+  // This enables zero-overhead type dispatch without reflection
+  std::function<std::shared_ptr<aslam::backend::ErrorTerm>(
+      const Eigen::Vector2d&, const Eigen::Matrix2d&,
+      const aslam::backend::HomogeneousExpression&)>
+      errorFactory_;
 };
 
 // Helper functions

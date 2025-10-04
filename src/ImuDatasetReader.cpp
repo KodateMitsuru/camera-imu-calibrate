@@ -29,7 +29,7 @@ ImuDatasetReaderIterator& ImuDatasetReaderIterator::operator++() {
     return *this;
 }
 
-ImuMeasurement ImuDatasetReaderIterator::operator*() const {
+ImuData ImuDatasetReaderIterator::operator*() const {
     return dataset_->getMessage(indices_[position_]);
 }
 
@@ -268,7 +268,7 @@ void ImuDatasetReader::truncateIndicesFromTime(const std::pair<double, double>& 
     indices_ = std::move(validIndices);
 }
 
-ImuMeasurement ImuDatasetReader::getMessage(size_t idx) const {
+ImuData ImuDatasetReader::getMessage(size_t idx) const {
     if (idx >= indices_.size()) {
         throw std::out_of_range("IMU message index out of range: " + std::to_string(idx) + 
                                " >= " + std::to_string(indices_.size()));
@@ -296,8 +296,8 @@ std::vector<aslam::Time> ImuDatasetReader::getTimestamps() const {
     return timestamps;
 }
 
-std::vector<ImuMeasurement> ImuDatasetReader::getAllMessages() const {
-    std::vector<ImuMeasurement> messages;
+std::vector<ImuData> ImuDatasetReader::getAllMessages() const {
+    std::vector<ImuData> messages;
     messages.reserve(indices_.size());
     
     for (size_t idx : indices_) {

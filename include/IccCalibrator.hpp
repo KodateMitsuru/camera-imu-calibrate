@@ -12,6 +12,7 @@
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
 #include <bsplines/BSplinePose.hpp>
+#include <concepts>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,10 +29,23 @@ constexpr int HELPER_GROUP_ID = 1;
 /**
  * @brief Add spline design variables to the optimization problem
  */
+template<typename SplineDesignVariableType>
+concept HasSplineDesignVariableMethods = requires(SplineDesignVariableType dvc, size_t i) {
+  { dvc.numDesignVariables() } -> std::convertible_to<size_t>;
+  { dvc.designVariable(i)
+  } -> std::convertible_to<aslam::backend::DesignVariable*>;
+};
+
+template<HasSplineDesignVariableMethods SplineDesignVariableType>
 void addSplineDesignVariables(aslam::backend::OptimizationProblem& problem,
-                              aslam::splines::BSplinePoseDesignVariable& dvc,
-                              bool setActive = true,
-                              int group_id = HELPER_GROUP_ID);
+                              SplineDesignVariableType& dvc,
+                              bool setActive, int group_id) {
+  for (size_t i = 0; i < dvc.numDesignVariables(); ++i) {
+    auto dv = dvc.designVariable(i);
+    dv->setActive(setActive);
+    problem.addDesignVariable(dv, group_id);
+  }
+}
 
 /**
  * @brief Main calibrator class for IMU-Camera calibration
