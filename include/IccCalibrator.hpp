@@ -9,6 +9,7 @@
 #include <aslam/backend/OptimizationProblem.hpp>
 #include <aslam/backend/Optimizer2.hpp>
 #include <aslam/backend/Optimizer2Options.hpp>
+#include <aslam/calibration/core/OptimizationProblem.h>
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
 #include <bsplines/BSplinePose.hpp>
@@ -17,35 +18,9 @@
 #include <string>
 #include <vector>
 
+#include "IccSensors.hpp"
+
 namespace kalibr {
-
-// Forward declarations
-class IccImu;
-class IccCameraChain;
-
-constexpr int CALIBRATION_GROUP_ID = 0;
-constexpr int HELPER_GROUP_ID = 1;
-
-/**
- * @brief Add spline design variables to the optimization problem
- */
-template<typename SplineDesignVariableType>
-concept HasSplineDesignVariableMethods = requires(SplineDesignVariableType dvc, size_t i) {
-  { dvc.numDesignVariables() } -> std::convertible_to<size_t>;
-  { dvc.designVariable(i)
-  } -> std::convertible_to<aslam::backend::DesignVariable*>;
-};
-
-template<HasSplineDesignVariableMethods SplineDesignVariableType>
-void addSplineDesignVariables(aslam::backend::OptimizationProblem& problem,
-                              SplineDesignVariableType& dvc,
-                              bool setActive, int group_id) {
-  for (size_t i = 0; i < dvc.numDesignVariables(); ++i) {
-    auto dv = dvc.designVariable(i);
-    dv->setActive(setActive);
-    problem.addDesignVariable(dv, group_id);
-  }
-}
 
 /**
  * @brief Main calibrator class for IMU-Camera calibration
@@ -59,7 +34,7 @@ class IccCalibrator {
    * @brief Initialize design variables for optimization
    */
   void initDesignVariables(
-      aslam::backend::OptimizationProblem& problem,
+      aslam::calibration::OptimizationProblem& problem,
       const bsplines::BSplinePose& poseSpline, bool noTimeCalibration,
       bool noChainExtrinsics = true, bool estimateGravityLength = false,
       const Eigen::Vector3d& initialGravityEstimate = Eigen::Vector3d(0.0, 9.81,
@@ -68,7 +43,7 @@ class IccCalibrator {
   /**
    * @brief Add pose motion error terms to the problem
    */
-  void addPoseMotionTerms(aslam::backend::OptimizationProblem& problem,
+  void addPoseMotionTerms(aslam::calibration::OptimizationProblem& problem,
                           double tv, double rv);
 
   /**
@@ -98,8 +73,9 @@ class IccCalibrator {
   /**
    * @brief Optimize the calibration
    */
-  void optimize(const aslam::backend::Optimizer2Options* options = nullptr,
-                int maxIterations = 30, bool recoverCov = false);
+  void optimize(
+      std::shared_ptr<aslam::backend::Optimizer2Options> options = nullptr,
+      int maxIterations = 30, bool recoverCov = false);
 
   /**
    * @brief Recover covariance matrix
@@ -120,11 +96,11 @@ class IccCalibrator {
   std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> getPoseDv() const {
     return poseDv_;
   }
-  std::shared_ptr<aslam::backend::DesignVariable> getGravityDv()
-      const {
+  std::shared_ptr<aslam::backend::DesignVariable> getGravityDv() const {
     return gravityDv_;
   }
-  std::shared_ptr<aslam::backend::EuclideanExpression> getGravityExpression() const {
+  std::shared_ptr<aslam::backend::EuclideanExpression> getGravityExpression()
+      const {
     return gravityExpression_;
   }
   const std::vector<std::shared_ptr<IccImu>>& getImuList() const {
@@ -140,8 +116,11 @@ class IccCalibrator {
   std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> poseDv_;
   std::shared_ptr<aslam::backend::DesignVariable> gravityDv_;
   std::shared_ptr<aslam::backend::EuclideanExpression> gravityExpression_;
-  std::shared_ptr<aslam::backend::OptimizationProblem> problem_;
+  std::shared_ptr<aslam::calibration::OptimizationProblem> problem_;
   std::shared_ptr<aslam::backend::Optimizer2> optimizer_;
+  Eigen::VectorXd std_trafo_ic_;
+  Eigen::VectorXd std_times_;
+  bool noTimeCalibration_;
 };
 
 }  // namespace kalibr
