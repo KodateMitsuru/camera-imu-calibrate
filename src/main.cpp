@@ -1,4 +1,4 @@
-#include <iostream>
+#include <print>
 #include <argparse/argparse.hpp>
 #include "IccCalibrator.hpp"
 
@@ -19,7 +19,7 @@ int main(int argc,char* argv[])
     try {
         program.parse_args(argc, argv);
     } catch (const std::runtime_error& err) {
-        std::cerr << "Error: " << err.what() << std::endl;
+        std::print(stderr, "Error: {}\n", err.what());
         return 1;
     }
 

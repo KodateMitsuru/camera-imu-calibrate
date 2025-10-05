@@ -1,8 +1,8 @@
 #include <algorithm>
-#include <iostream>
 #include <kalibr_common/ImageDatasetReader.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <print>
 #include <random>
 
 namespace kalibr {
@@ -70,8 +70,8 @@ ImageDatasetReader::ImageDatasetReader(const std::string& imageFolder,
     truncateIndicesFromFreq(targetFreq);
   }
 
-  std::cout << "ImageDatasetReader: Loaded " << indices_.size()
-            << " images from " << imageFolder << std::endl;
+  std::println("ImageDatasetReader: Loaded {} images from {}", indices_.size(),
+               imageFolder);
 }
 
 void ImageDatasetReader::loadImageFiles() {
@@ -99,8 +99,9 @@ void ImageDatasetReader::loadImageFiles() {
     double timestamp = extractTimestampFromFilename(filename);
 
     if (timestamp < 0.0) {
-      std::cerr << "Warning: Could not extract timestamp from filename: "
-                << path.filename().string() << std::endl;
+      std::println(stderr,
+                   "Warning: Could not extract timestamp from filename: {}",
+                   path.filename().string());
       continue;
     }
 
@@ -211,14 +212,15 @@ void ImageDatasetReader::truncateIndicesFromTime(
   }
 
   if (from_to.first < 0.0) {
-    std::cerr << "Warning: Start time of " << from_to.first
-              << " s is less than 0" << std::endl;
+    std::println(stderr, "Warning: Start time of {} s is less than 0",
+                 from_to.first);
   }
 
   if (from_to.second > baglength) {
-    std::cerr << "Warning: End time of " << from_to.second
-              << " s is greater than the total length of " << baglength << " s"
-              << std::endl;
+    std::println(
+        stderr,
+        "Warning: End time of {} s is greater than the total length of {} s",
+        from_to.second, baglength);
   }
 
   // Find valid indices
@@ -235,8 +237,8 @@ void ImageDatasetReader::truncateIndicesFromTime(
 
   size_t removed = indices_.size() - validIndices.size();
   if (removed > 0) {
-    std::cout << "ImageDatasetReader: Truncated " << removed << " / "
-              << indices_.size() << " images (time-based)" << std::endl;
+    std::println("ImageDatasetReader: Truncated {} / {} images (time-based)",
+                 removed, indices_.size());
   }
 
   indices_ = std::move(validIndices);
@@ -274,8 +276,9 @@ void ImageDatasetReader::truncateIndicesFromFreq(double freq) {
 
   size_t removed = indices_.size() - validIndices.size();
   if (removed > 0) {
-    std::cout << "ImageDatasetReader: Truncated " << removed << " / "
-              << indices_.size() << " images (frequency-based)" << std::endl;
+    std::println(
+        "ImageDatasetReader: Truncated {} / {} images (frequency-based)",
+        removed, indices_.size());
   }
 
   indices_ = std::move(validIndices);

@@ -11,10 +11,11 @@
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <cstddef>
 #include <exception>
-#include <iostream>
 #include <memory>
+#include <print>
 #include <stdexcept>
 #include <thread>
+
 #include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
 #include "aslam/backend/DesignVariable.hpp"
 #include "aslam/backend/LevenbergMarquardtTrustRegionPolicy.hpp"
@@ -56,8 +57,7 @@ void IccCalibrator::initDesignVariables(
   // derivative order = 0
 
   gravityDv_->setActive(true);
-  problem.addDesignVariable(gravityDv_,
-                            HELPER_GROUP_ID);
+  problem.addDesignVariable(gravityDv_, HELPER_GROUP_ID);
 
   // Add all DVs for all IMUs
   for (auto& imu : imuList_) {
@@ -103,25 +103,21 @@ void IccCalibrator::buildProblem(
     double huberAccel, double huberGyro, bool noTimeCalibration,
     bool noChainExtrinsics, int maxIterations, double gyroNoiseScale,
     double accelNoiseScale, double timeOffsetPadding, bool verbose) {
-  std::cout << "\tSpline order: " << splineOrder << std::endl;
-  std::cout << "\tPose knots per second: " << poseKnotsPerSecond << std::endl;
-  std::cout << "\tDo pose motion regularization: "
-            << (doPoseMotionError ? "True" : "False") << std::endl;
-  std::cout << "\t\txddot translation variance: " << mrTranslationVariance
-            << std::endl;
-  std::cout << "\t\txddot rotation variance: " << mrRotationVariance
-            << std::endl;
-  std::cout << "\tBias knots per second: " << biasKnotsPerSecond << std::endl;
-  std::cout << "\tDo bias motion regularization: "
-            << (doBiasMotionError ? "True" : "False") << std::endl;
-  std::cout << "\tBlake-Zisserman on reprojection errors " << blakeZisserCam
-            << std::endl;
-  std::cout << "\tAcceleration Huber width (sigma): " << huberAccel
-            << std::endl;
-  std::cout << "\tGyroscope Huber width (sigma): " << huberGyro << std::endl;
-  std::cout << "\tDo time calibration: " << !noTimeCalibration << std::endl;
-  std::cout << "\tMax iterations: " << maxIterations << std::endl;
-  std::cout << "\tTime offset padding: " << timeOffsetPadding << std::endl;
+  std::println("\tSpline order: {}", splineOrder);
+  std::println("\tPose knots per second: {}", poseKnotsPerSecond);
+  std::println("\tDo pose motion regularization: {}",
+               doPoseMotionError ? "True" : "False");
+  std::println("\t\txddot translation variance: {}", mrTranslationVariance);
+  std::println("\t\txddot rotation variance: {}", mrRotationVariance);
+  std::println("\tBias knots per second: {}", biasKnotsPerSecond);
+  std::println("\tDo bias motion regularization: {}",
+               doBiasMotionError ? "True" : "False");
+  std::println("\tBlake-Zisserman on reprojection errors {}", blakeZisserCam);
+  std::println("\tAcceleration Huber width (sigma): {}", huberAccel);
+  std::println("\tGyroscope Huber width (sigma): {}", huberGyro);
+  std::println("\tDo time calibration: {}", !noTimeCalibration);
+  std::println("\tMax iterations: {}", maxIterations);
+  std::println("\tTime offset padding: {}", timeOffsetPadding);
 
   noTimeCalibration_ = noTimeCalibration;
   if (!noTimeCalibration) {
@@ -173,11 +169,14 @@ void IccCalibrator::optimize(
     options = std::make_shared<aslam::backend::Optimizer2Options>();
     options->verbose = true;
     options->nThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    options->convergenceDeltaX=1e-5;
-    options->convergenceDeltaJ=1e-2;
-    options->maxIterations=maxIterations;
-    options->trustRegionPolicy = std::make_shared<aslam::backend::LevenbergMarquardtTrustRegionPolicy>(10.0);
-    options->linearSystemSolver = std::make_shared<aslam::backend::BlockCholeskyLinearSystemSolver>();
+    options->convergenceDeltaX = 1e-5;
+    options->convergenceDeltaJ = 1e-2;
+    options->maxIterations = maxIterations;
+    options->trustRegionPolicy =
+        std::make_shared<aslam::backend::LevenbergMarquardtTrustRegionPolicy>(
+            10.0);
+    options->linearSystemSolver =
+        std::make_shared<aslam::backend::BlockCholeskyLinearSystemSolver>();
   }
 
   optimizer_ = std::make_shared<aslam::backend::Optimizer2>(*options);
@@ -187,16 +186,16 @@ void IccCalibrator::optimize(
 
   try {
     auto retval = optimizer_->optimize();
-    if (retval.linearSolverFailure){
-        optimizationFailed = true;
+    if (retval.linearSolverFailure) {
+      optimizationFailed = true;
     }
   } catch (std::exception e) {
-    std::cerr << e.what() <<std::endl;
+    std::println(stderr, "{}", e.what());
     optimizationFailed = true;
   }
 
   if (optimizationFailed) {
-    std::cerr << "Optimization failed!" << std::endl;
+    std::println(stderr, "Optimization failed!");
     throw std::runtime_error("Optimization failed!");
   }
 
@@ -206,11 +205,11 @@ void IccCalibrator::optimize(
   }
 }
 
-
 void IccCalibrator::recoverCovariance() {
-  std::cout << "Recovering covariance..." << std::endl;
-  auto estimator = aslam::calibration::IncrementalEstimator(CALIBRATION_GROUP_ID);
-  auto rval = estimator.addBatch(problem_,true);
+  std::println("Recovering covariance...");
+  auto estimator =
+      aslam::calibration::IncrementalEstimator(CALIBRATION_GROUP_ID);
+  auto rval = estimator.addBatch(problem_, true);
   Eigen::VectorXd est_stds = estimator.getSigma2Theta().diagonal().cwiseSqrt();
 
   std_trafo_ic_ = est_stds.head(6);
@@ -227,30 +226,31 @@ void IccCalibrator::saveImuSetParametersYaml(const std::string& resultFile) {
   imuSetConfig->writeYaml(resultFile);
 }
 
-void IccCalibrator::saveCamChainParametersYaml(const std::string& resultFile)
-{
+void IccCalibrator::saveCamChainParametersYaml(const std::string& resultFile) {
   auto chain = cameraChain_->getChainConfig();
   auto nCams = cameraChain_->getCamList().size();
 
-  for (size_t camNr=0;camNr < nCams;camNr++){
-    if (camNr>0){
-        auto [T_cB_cA,baseline] = cameraChain_->getResultBaseline(camNr-1, camNr);
-        chain.setExtrinsicsLastCamToHere(camNr, T_cB_cA);
+  for (size_t camNr = 0; camNr < nCams; camNr++) {
+    if (camNr > 0) {
+      auto [T_cB_cA, baseline] =
+          cameraChain_->getResultBaseline(camNr - 1, camNr);
+      chain.setExtrinsicsLastCamToHere(camNr, T_cB_cA);
     }
 
     auto T_ci = cameraChain_->getResultTrafoImuToCam(camNr);
     chain.setExtrinsicsImuToCam(camNr, T_ci);
 
-    if (!noTimeCalibration_){
-        auto timeshift = cameraChain_->getResultTimeshift(camNr);
-        chain.setTimeshiftCamImu(camNr, timeshift);
+    if (!noTimeCalibration_) {
+      auto timeshift = cameraChain_->getResultTimeshift(camNr);
+      chain.setTimeshiftCamImu(camNr, timeshift);
     }
   }
 
   try {
     chain.writeYaml(resultFile);
-  } catch (...){
-    throw std::runtime_error("ERROR: Could not write parameters to file: "+resultFile+"\n");
+  } catch (...) {
+    throw std::runtime_error(
+        "ERROR: Could not write parameters to file: " + resultFile + "\n");
   }
 }
 
