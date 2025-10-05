@@ -317,12 +317,26 @@ void CameraParameters::setResolution(const Eigen::Vector2i& resolution) {
 
 double CameraParameters::getLineDelay() const {
   double lineDelay = 0.0;
-  lineDelay = std::any_cast<double>(data_.at("line_delay"));
+  if (data_.find("line_delay") != data_.end()) {
+    lineDelay = std::any_cast<double>(data_.at("line_delay"));
+  }
   return lineDelay;
 }
 
 void CameraParameters::setLineDelay(double lineDelay) {
   data_["line_delay"] = lineDelay;
+}
+
+double CameraParameters::getReprojectionSigma() const {
+  double sigma = 1.0;
+  if(data_.find("reprojection_sigma") != data_.end()) {
+    sigma = std::any_cast<double>(data_.at("reprojection_sigma"));
+  }
+  return sigma;
+}
+
+void CameraParameters::setReprojectionSigma(double sigma) {
+  data_["reprojection_sigma"] = sigma;
 }
 
 void CameraParameters::checkIntrinsics(
@@ -586,6 +600,25 @@ void ImuParameters::printDetails(std::ostream& os) const {
   os << "    Noise density (discrete): " << gyroDiscrete << std::endl;
   os << "    Random walk: " << gyroRandomWalk << std::endl;
 }
+
+// ============================================================================
+// ImuSetParameters Implementation
+// ============================================================================
+
+ImuSetParameters::ImuSetParameters(const std::string& yamlFile,
+                                   bool createYaml)
+    : ParametersBase(yamlFile, "ImuSetConfig", createYaml) {
+      imuCount_ = 0;
+    }
+
+    void ImuSetParameters::addImuConfig(const ImuParameters& imuConfig,
+                                        std::string name) {
+      if(name.empty()){
+        name = "imu_" + std::to_string(imuCount_);
+      }
+      data_[name] = imuConfig.getYamlDict();
+      imuCount_++;
+    }
 
 // ============================================================================
 // CalibrationTargetParameters Implementation

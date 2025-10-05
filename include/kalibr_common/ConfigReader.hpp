@@ -108,6 +108,9 @@ class CameraParameters : public ParametersBase {
   double getLineDelay() const;
   void setLineDelay(double lineDelay);
 
+  double getReprojectionSigma() const;
+  void setReprojectionSigma(double sigma);
+
   // Helpers
   void printDetails(std::ostream& os = std::cout) const;
 
@@ -149,6 +152,19 @@ class ImuParameters : public ParametersBase {
   void checkAccelerometerStatistics(double noiseDensity,
                                     double randomWalk) const;
   void checkGyroscopeStatistics(double noiseDensity, double randomWalk) const;
+};
+
+class ImuSetParameters : public ParametersBase {
+ public:
+  explicit ImuSetParameters(const std::string& yamlFile, bool createYaml = false);
+
+  size_t numImus() const {
+    return imuCount_;
+  }
+
+  void addImuConfig(const ImuParameters& imuConfig,std::string name = "");
+ private:
+  size_t imuCount_ = 0;
 };
 
 /**
