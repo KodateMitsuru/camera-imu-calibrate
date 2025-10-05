@@ -585,7 +585,7 @@ IccCameraChain::IccCameraChain(const CameraChainParameters& chainConfig,
     auto camConfig = chainConfig.getCameraParameters(i);
     auto& dataset = datasets[i];
     camList_.push_back(std::make_shared<IccCamera>(
-        camConfig, targetConfig, dataset, camConfig->getReprojectionSigma()));
+        *camConfig, targetConfig, dataset, camConfig->getReprojectionSigma()));
   }
 
   this->findCameraTimespan();
