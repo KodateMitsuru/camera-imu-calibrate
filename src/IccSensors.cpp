@@ -41,7 +41,6 @@
 #include "aslam/Time.hpp"
 #include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
 #include "aslam/backend/MEstimatorPolicies.hpp"
-#include "aslam/backend/Scalar.hpp"
 #include "bsplines/BSpline.hpp"
 #include "kalibr_common/ConfigReader.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
@@ -798,10 +797,10 @@ void IccImu::loadImuData() {
 IccImu::IccImu(const ::kalibr::ImuParameters& imuConfig,
                const ImuDatasetReader& dataset, bool isReferenceImu,
                bool estimateTimeDelay, int imuNr)
-    : isReferenceImu_(isReferenceImu),
-      estimateTimeDelay_(estimateTimeDelay),
-      dataset_(dataset),
-      imuConfig_(IccImu::ImuParameters(imuConfig, imuNr)) {
+    : dataset_(dataset),
+      imuConfig_(IccImu::ImuParameters(imuConfig, imuNr)),
+      isReferenceImu_(isReferenceImu),
+      estimateTimeDelay_(estimateTimeDelay) {
   auto accelerometerStatistics = imuConfig.getAccelerometerStatistics();
   accelUncertaintyDiscrete_ = std::get<0>(accelerometerStatistics);
   accelRandomWalk_ = std::get<1>(accelerometerStatistics);

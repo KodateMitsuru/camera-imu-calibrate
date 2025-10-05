@@ -43,11 +43,13 @@ void IccCalibrator::initDesignVariables(
   if (estimateGravityLength) {
     gravityDv_ = std::make_shared<aslam::backend::EuclideanPoint>(
         initialGravityEstimate);
+    gravityDvType_ = typeid(aslam::backend::EuclideanPoint).hash_code();
     gravityExpression_ = std::make_shared<aslam::backend::EuclideanExpression>(
         ((aslam::backend::EuclideanPoint*)gravityDv_.get())->toExpression());
   } else {
     gravityDv_ = std::make_shared<aslam::backend::EuclideanDirection>(
         initialGravityEstimate);
+    gravityDvType_ = typeid(aslam::backend::EuclideanDirection).hash_code();
     gravityExpression_ = std::make_shared<aslam::backend::EuclideanExpression>(
         ((aslam::backend::EuclideanDirection*)gravityDv_.get())
             ->toExpression());
