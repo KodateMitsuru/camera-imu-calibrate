@@ -66,7 +66,16 @@ void addSplineDesignVariables(ProblemType& problem,
   for (size_t i = 0; i < dvc.numDesignVariables(); ++i) {
     auto dv = dvc.designVariable(i);
     dv->setActive(setActive);
-    problem.addDesignVariable(dv, group_id);
+    if constexpr (requires { problem.addDesignVariable(dv, group_id); }) {
+      problem.addDesignVariable(dv, group_id);
+    } else if constexpr (requires { problem.addDesignVariable(dv.get(), group_id); }) {
+      problem.addDesignVariable(dv.get(), group_id);
+    } else if constexpr (requires { problem.addDesignVariable(std::shared_ptr<aslam::backend::DesignVariable>(dv), group_id); }) {
+      problem.addDesignVariable(std::shared_ptr<aslam::backend::DesignVariable>(dv), group_id);
+    } else {
+      static_assert([]() { return false; }(),
+                    "No suitable addDesignVariable method found in ProblemType");
+    }
   }
 }
 
@@ -126,16 +135,27 @@ class IccCamera {
         std::make_shared<aslam::backend::TransformationDesignVariable>(
             this->T_extrinsic_, active, active);
     for (int i = 0; i < this->T_c_b_Dv_->numDesignVariables(); ++i) {
-      problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i).get(),
-                                baselinedv_group_id);
+      if constexpr (requires { problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i), baselinedv_group_id); }) {
+        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i), baselinedv_group_id);
+      } else {
+        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i).get(), baselinedv_group_id);
+      }
     }
 
     // Add the time delay design variable.
     this->cameraTimeToImuTimeDv_ =
         std::make_shared<aslam::backend::Scalar>(0.0);
     this->cameraTimeToImuTimeDv_->setActive(!noTimeCalibration);
-    problem.addDesignVariable(this->cameraTimeToImuTimeDv_.get(),
-                              CALIBRATION_GROUP_ID);
+    if constexpr (requires {
+                    problem.addDesignVariable(this->cameraTimeToImuTimeDv_,
+                                              CALIBRATION_GROUP_ID);
+                  }) {
+      problem.addDesignVariable(this->cameraTimeToImuTimeDv_,
+                                CALIBRATION_GROUP_ID);
+    } else {
+      problem.addDesignVariable(this->cameraTimeToImuTimeDv_.get(),
+                                CALIBRATION_GROUP_ID);
+    }
   }
 
   /**
@@ -355,11 +375,23 @@ class IccImu {
         true, HELPER_GROUP_ID);
     q_i_b_Dv_ =
         std::make_shared<aslam::backend::RotationQuaternion>(q_i_b_Prior_);
-    problem.addDesignVariable(q_i_b_Dv_.get(), HELPER_GROUP_ID);
+    if constexpr (requires {
+                    problem.addDesignVariable(q_i_b_Dv_, HELPER_GROUP_ID);
+                  }) {
+      problem.addDesignVariable(q_i_b_Dv_, HELPER_GROUP_ID);
+    } else {
+      problem.addDesignVariable(q_i_b_Dv_.get(), HELPER_GROUP_ID);
+    }
     q_i_b_Dv_->setActive(false);
     r_b_Dv_ = std::make_shared<aslam::backend::EuclideanPoint>(
         Eigen::Vector3d::Zero());
-    problem.addDesignVariable(r_b_Dv_.get(), HELPER_GROUP_ID);
+    if constexpr (requires {
+                    problem.addDesignVariable(r_b_Dv_, HELPER_GROUP_ID);
+                  }) {
+      problem.addDesignVariable(r_b_Dv_, HELPER_GROUP_ID);
+    } else {
+      problem.addDesignVariable(r_b_Dv_.get(), HELPER_GROUP_ID);
+    }
     r_b_Dv_->setActive(false);
 
     if (!isReferenceImu_) {
