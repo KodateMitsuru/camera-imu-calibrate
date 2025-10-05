@@ -11,7 +11,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
-find_package(yaml-cpp REQUIRED)
 
 add_subdirectory(thirdparty/matplotplusplus)
 add_subdirectory(thirdparty/argparse)

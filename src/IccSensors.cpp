@@ -1,5 +1,4 @@
 #include <ceres/ceres.h>
-#include <ceres/numeric_diff_cost_function.h>
 
 #include <Eigen/Core>
 #include <IccSensors.hpp>
@@ -24,6 +23,7 @@
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <bsplines/BSplinePose.hpp>
 #include <cmath>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
@@ -32,6 +32,7 @@
 #include <kalibr_errorterms/GyroscopeError.hpp>
 #include <memory>
 #include <opencv2/highgui.hpp>
+#include <print>
 #include <sm/kinematics/RotationVector.hpp>
 #include <sm/kinematics/transformations.hpp>
 #include <string>
@@ -46,6 +47,7 @@
 #include "kalibr_errorterms/EuclideanError.hpp"
 #include "sm/kinematics/Transformation.hpp"
 #include "sm/kinematics/quaternion_algebra.hpp"
+#include "sm/progress/Progress.hpp"
 
 namespace kalibr {
 // ============================================================================
@@ -85,14 +87,14 @@ IccCamera::IccCamera(const CameraParameters& camConfig,
   // An estimate of the gravity in the world coordinate frame
   gravity_w_ = Eigen::Vector3d(9.80655, 0.0, 0.0);
 
-  std::cout << "Camera initialized with " << targetObservations_.size()
-            << " target observations" << std::endl;
+  std::println("Camera initialized with {} target observations",
+               targetObservations_.size());
 }
 
 void IccCamera::setupCalibrationTarget(
     const CalibrationTargetParameters& targetConfig, bool showExtraction,
     bool showReproj, bool imageStepping) {
-  std::cout << "Setting up calibration target..." << std::endl;
+  std::println("Setting up calibration target...");
 
   // Load the calibration target configuration
 
@@ -149,11 +151,11 @@ void IccCamera::setupCalibrationTarget(
   detector_ = std::make_shared<aslam::cameras::GridDetector>(
       camera_->getGeometry(), grid, detectorOptions);
 
-  std::cout << "Calibration target setup completed" << std::endl;
+  std::println("Calibration target setup completed");
 }
 
 void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
-  std::cout << "\nEstimating imu-camera rotation prior" << std::endl;
+  std::println("\nEstimating imu-camera rotation prior");
 
   // Build the optimization problem
   std::shared_ptr<aslam::backend::OptimizationProblem> problem =
@@ -250,8 +252,8 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
   // Normalize to standard gravity
   gravity_w_ = mean_a_w.normalized() * 9.80655;
 
-  std::cout << "  Gravity was initialized to: " << gravity_w_.transpose()
-            << " [m/s^2]" << std::endl;
+  std::println("  Gravity was initialized to: {} [m/s^2]",
+               gravity_w_.transpose());
 
   // Get gyro bias
   Eigen::Vector3d b_gyro = bias.toEuclidean();
@@ -260,16 +262,17 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
   // Note: This modifies the IMU object - in practice you may need a different
   // approach
 
-  std::cout << "  Orientation prior camera-imu found as: (T_i_c)" << std::endl;
-  std::cout << R_i_c << std::endl;
-  std::cout << "  Gyro bias prior found as: (b_gyro)" << std::endl;
-  std::cout << b_gyro.transpose() << std::endl;
+  std::println("  Orientation prior camera-imu found as: (T_i_c)");
+  std::cout << R_i_c << std::endl;  // Eigen matrices need stream operator
+  std::println("  Gyro bias prior found as: (b_gyro)");
+  std::cout << b_gyro.transpose()
+            << std::endl;  // Eigen vectors need stream operator
 }
 
 Eigen::Vector3d IccCamera::getEstimatedGravity() const { return gravity_w_; }
 
 double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
-  std::cout << "Estimating time shift camera to imu:" << std::endl;
+  std::println("Estimating time shift camera to imu:");
 
   // Fit a spline to the camera observations
   bsplines::BSplinePose poseSpline =
@@ -357,9 +360,9 @@ double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
   double shift = -discrete_shift * dT;
 
   if (verbose) {
-    std::cout << "  Discrete time shift: " << discrete_shift << std::endl;
-    std::cout << "  Continuous time shift: " << shift << std::endl;
-    std::cout << "  dT: " << dT << std::endl;
+    std::println("  Discrete time shift: {}", discrete_shift);
+    std::println("  Continuous time shift: {}", shift);
+    std::println("  dT: {}", dT);
 
     // TODO: Add plotting if needed
   }
@@ -367,17 +370,15 @@ double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
   // Store the timeshift (t_imu = t_cam + timeshiftCamToImuPrior)
   timeshiftCamToImuPrior_ = shift;
 
-  std::cout << "  Time shift camera to imu (t_imu = t_cam + shift):"
-            << std::endl;
-  std::cout << "  " << timeshiftCamToImuPrior_ << " seconds" << std::endl;
+  std::println("  Time shift camera to imu (t_imu = t_cam + shift):");
+  std::println("  {} seconds", timeshiftCamToImuPrior_);
 
   return timeshiftCamToImuPrior_;
 }
 
 bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
     int splineOrder, int poseKnotsPerSecond, double timeOffsetPadding) {
-  std::cout << "Initializing pose spline from camera observations..."
-            << std::endl;
+  std::println("Initializing pose spline from camera observations...");
 
   // Get the extrinsic transformation
   Eigen::Matrix4d T_c_b = T_extrinsic_.T();
@@ -461,9 +462,10 @@ bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
   double seconds = times_padded(times_padded.size() - 1) - times_padded(0);
   int knots = static_cast<int>(std::round(seconds * poseKnotsPerSecond));
 
-  std::cout << "Initializing a pose spline with " << knots << " knots ("
-            << poseKnotsPerSecond << " knots per second over " << seconds
-            << " seconds)" << std::endl;
+  std::println(
+      "Initializing a pose spline with {} knots ({} knots per second over {} "
+      "seconds)",
+      knots, poseKnotsPerSecond, seconds);
 
   // Initialize sparse pose spline
   pose.initPoseSplineSparse(times_padded, curve_padded, knots, 1e-4);
@@ -477,9 +479,9 @@ void IccCamera::addCameraErrorTerms(
         poseSplineDv,
     const aslam::backend::TransformationExpression& T_cN_b,
     double blakeZissermanDf, double timeOffsetPadding) {
-  std::cout << "\nAdding camera error terms (" << dataset_.getTopic() << ")"
-            << std::endl;
-
+  std::println("\nAdding camera error terms ({})", dataset_.getTopic());
+  auto iProgress = sm::progress::Progress2(targetObservations_.size());
+  iProgress.sample();
   // Clear previous reprojection errors
   allReprojectionErrors_.clear();
   int totalErrorTerms = 0;
@@ -561,10 +563,11 @@ void IccCamera::addCameraErrorTerms(
     }
 
     allReprojectionErrors_.push_back(reprojectionErrors);
+
+    iProgress.sample();
   }
 
-  std::cout << "  Added " << totalErrorTerms << " camera error terms"
-            << std::endl;
+  std::println("  Added {} camera error terms", totalErrorTerms);
 }
 
 // ============================================================================
@@ -591,18 +594,16 @@ IccCameraChain::IccCameraChain(const CameraChainParameters& chainConfig,
   this->findCameraTimespan();
   this->initializeBaselines();
 
-  std::cout << "Initialized camera chain with " << camList_.size() << " cameras"
-            << std::endl;
+  std::println("Initialized camera chain with {} cameras", camList_.size());
 }
 
 void IccCameraChain::initializeBaselines() {
   for (size_t i = 1; i < camList_.size(); ++i) {
     camList_[i]->getExtrinsic() = chainConfig_.getExtrinsicsLastCamToHere(i);
-    std::cout << "Baseline between cam" << i - 1 << " and cam" << i
-              << " set to:" << std::endl;
-    std::cout << "T= " << camList_[i]->getExtrinsic().T() << std::endl;
-    std::cout << "Baseline: " << camList_[i]->getExtrinsic().t().norm()
-              << " [m]" << std::endl;
+    std::println("Baseline between cam{} and cam{} set to:", i - 1, i);
+    std::cout << "T= " << camList_[i]->getExtrinsic().T()
+              << std::endl;  // Eigen matrix
+    std::println("Baseline: {} [m]", camList_[i]->getExtrinsic().t().norm());
   }
 }
 
@@ -707,7 +708,6 @@ void IccCameraChain::addCameraChainerrorTerms(
 
     cam->addCameraErrorTerms(problem, poseSplineDv, T_cN_b, blakeZissermanDf,
                              timeOffsetPadding);
-
   }
 }
 
@@ -735,30 +735,26 @@ void IccImu::ImuParameters::setTimeOffset(double time_offset) {
 
 std::string kalibr::IccImu::ImuParameters::formatIndented(
     const std::string& indent, std::vector<double> array) const {
-  // indent + str(np.array_str(np_array)).replace('\n',"\n"+indent)
-  std::string s = indent + "[";
-  bool first = true;
-  for (const auto& v : array) {
-    if (!first) {
-      s += ", ";
-    }
-    s += std::to_string(v);
-    first = false;
+  // Format array with indent using std::format
+  std::string result = indent + "[";
+  for (size_t i = 0; i < array.size(); ++i) {
+    if (i > 0) result += ", ";
+    result += std::format("{}", array[i]);
   }
-  s += "]";
-  return s;
+  result += "]";
+  return result;
 }
 
 void IccImu::ImuParameters::printDetails(std::ostream& out) const {
-  out << "  Model: " << std::any_cast<std::string>(data_.at("model"))
-      << std::endl;
+  std::println(out, "  Model: {}",
+               std::any_cast<std::string>(data_.at("model")));
   ::kalibr::ImuParameters::printDetails(out);
-  out << "  T_ib (imu0 to imu" << imuNr_ << ")" << std::endl;
-  out << formatIndented("    ",
-                        std::any_cast<std::vector<double>>(data_.at("T_i_b")))
-      << std::endl;
-  out << "  time offset with respect to IMU0: "
-      << std::any_cast<double>(data_.at("time_offset")) << " [s]" << std::endl;
+  std::println(out, "  T_ib (imu0 to imu{})", imuNr_);
+  std::println(out, "{}",
+               formatIndented("    ", std::any_cast<std::vector<double>>(
+                                          data_.at("T_i_b"))));
+  std::println(out, "  time offset with respect to IMU0: {} [s]",
+               std::any_cast<double>(data_.at("time_offset")));
 }
 
 void IccImu::updateImuConfig() {
@@ -773,7 +769,9 @@ const IccImu::ImuParameters& IccImu::getImuConfig() {
 }
 
 void IccImu::loadImuData() {
-  std::cout << "Loading IMU data..." << std::endl;
+  std::println("Loading IMU data...");
+  auto iProgress = sm::progress::Progress2(dataset_.numMessages());
+  iProgress.sample();
   Eigen::Matrix3d Rgyro = Eigen::Matrix3d::Identity() *
                           this->gyroUncertaintyDiscrete_ *
                           this->gyroUncertaintyDiscrete_;
@@ -784,16 +782,16 @@ void IccImu::loadImuData() {
   std::vector<ImuMeasurement> data;
   for (auto [timestamp, omega, alpha] : dataset_.getAllMessages()) {
     data.emplace_back(timestamp, omega, alpha, Rgyro, Raccel);
+    iProgress.sample();
   }
   imuData_.swap(data);
 
   if (imuData_.empty()) {
     throw std::runtime_error("No IMU data loaded");
   } else {
-    std::cout << "  Read " << imuData_.size() << " imu readings over "
-              << (imuData_.back().stamp.toSec() -
-                  imuData_.front().stamp.toSec())
-              << " seconds" << std::endl;
+    std::println(
+        "  Read {} imu readings over {} seconds", imuData_.size(),
+        imuData_.back().stamp.toSec() - imuData_.front().stamp.toSec());
   }
 }
 
@@ -815,14 +813,16 @@ IccImu::IccImu(const ::kalibr::ImuParameters& imuConfig,
   this->loadImuData();
 }
 
-
-
 void IccImu::addAccelerometerErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
     aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
     const aslam::backend::EuclideanExpression& g_w, double mSigma,
     double accelNoiseScale) {
-  std::cout << "\nAdding accelerometer error terms..." << std::endl;
+  std::println("\nAdding accelerometer error terms...");
+
+  auto iProgress = sm::progress::Progress2(imuData_.size());
+  iProgress.sample();
+
   double weight = 1.0 / (accelNoiseScale);
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
   int num_skipped = 0;
@@ -860,10 +860,12 @@ void IccImu::addAccelerometerErrorTerms(
     } else {
       num_skipped++;
     }
+    iProgress.sample();
   }
-  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
-            << imuData_.size() << " accelerometer error terms (skipped "
-            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  std::println(
+      "  Added {} of {} accelerometer error terms (skipped {} out-of-bounds "
+      "measurements)",
+      imuData_.size() - num_skipped, imuData_.size(), num_skipped);
   accelErrors_.swap(accelErrors);
 }
 
@@ -871,7 +873,11 @@ void IccImu::addGyroscopeErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
     aslam::splines::BSplinePoseDesignVariable& poseSplineDv, double mSigma,
     double gyroNoiseScale, const aslam::backend::EuclideanExpression&) {
-  std::cout << "\nAdding gyroscope error terms..." << std::endl;
+  std::println("\nAdding gyroscope error terms...");
+
+  auto iProgress = sm::progress::Progress2(imuData_.size());
+  iProgress.sample();
+
   double weight = 1.0 / (gyroNoiseScale);
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors;
   int num_skipped = 0;
@@ -904,10 +910,12 @@ void IccImu::addGyroscopeErrorTerms(
     } else {
       num_skipped++;
     }
+    iProgress.sample();
   }
-  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
-            << imuData_.size() << " accelerometer error terms (skipped "
-            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  std::println(
+      "  Added {} of {} gyroscope error terms (skipped {} out-of-bounds "
+      "measurements)",
+      imuData_.size() - num_skipped, imuData_.size(), num_skipped);
   gyroErrors_.swap(gyroErrors);
 }
 
@@ -917,8 +925,7 @@ void IccImu::initBiasSplines(const bsplines::BSplinePose& poseSpline,
   auto end = poseSpline.t_max();
   auto seconds = end - start;
   int knots = static_cast<int>(std::round(seconds * biasKnotsPerSecond));
-  std::cout << "\nInitializing the bias splines with " << knots << " knots"
-            << std::endl;
+  std::println("\nInitializing the bias splines with {} knots", knots);
 
   gyroBias_ = std::make_shared<bsplines::BSpline>(splineOrder);
   gyroBias_->initConstantSpline(start, end, knots, GyroBiasPrior_);
@@ -927,7 +934,8 @@ void IccImu::initBiasSplines(const bsplines::BSplinePose& poseSpline,
   accelBias_->initConstantSpline(start, end, knots, Eigen::Vector3d::Zero());
 }
 
-void IccImu::addBiasMotionTerms(aslam::backend::OptimizationProblemBase& problem) {
+void IccImu::addBiasMotionTerms(
+    aslam::backend::OptimizationProblemBase& problem) {
   Eigen::Matrix3d Wgyro =
       Eigen::Matrix3d::Identity() / (gyroRandomWalk_ * gyroRandomWalk_);
   Eigen::Matrix3d Waccel =
@@ -959,7 +967,7 @@ sm::kinematics::Transformation IccImu::getTransformationFromBodyToImu() const {
 }
 
 void IccImu::findOrientationPrior(const IccImu& referenceImu) {
-  std::cout << "\nEstimating imu-imu rotation initial guess..." << std::endl;
+  std::println("\nEstimating imu-imu rotation initial guess...");
   auto problem = std::make_shared<aslam::backend::OptimizationProblem>();
   auto q_i_b_Dv = std::make_shared<aslam::backend::RotationQuaternion>(
       Eigen::Matrix3d::Identity().eval());
@@ -1019,8 +1027,8 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
   try {
     optimizer.optimize();
   } catch (std::exception& e) {
-    std::cerr << "Failed to obtain initial guess for the relative orientation!"
-              << std::endl;
+    std::println(
+        stderr, "Failed to obtain initial guess for the relative orientation!");
     throw e;
   }
 
@@ -1098,14 +1106,12 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
     timeOffset_ = shift;
   }
 
-  std::cout << "Temporal correction with respect to reference IMU "
-            << std::endl;
-  std::cout << timeOffset_ << "[s]";
+  std::println("Temporal correction with respect to reference IMU");
   if (!estimateTimeDelay_) {
-    std::cout << " (this offset is not accounted for in the calibration)"
-              << std::endl;
+    std::println("{}[s] (this offset is not accounted for in the calibration)",
+                 timeOffset_);
   } else {
-    std::cout << std::endl;
+    std::println("{}[s]", timeOffset_);
   }
 
   gyroBiasDv_ =
@@ -1135,13 +1141,13 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
   try {
     optimizer.optimize();
   } catch (std::exception& e) {
-    std::cerr << "Failed to obtain initial guess for the relative orientation!"
-              << std::endl;
+    std::println(
+        stderr, "Failed to obtain initial guess for the relative orientation!");
     throw e;
   }
 
-  std::cout << "Estimated imu to reference imu Rotation: " << std::endl;
-  std::cout << q_i_b_Dv->toRotationMatrix() << std::endl;
+  std::println("Estimated imu to reference imu Rotation:");
+  std::cout << q_i_b_Dv->toRotationMatrix() << std::endl;  // Eigen matrix
 
   q_i_b_Prior_ = sm::kinematics::r2quat(q_i_b_Dv->toRotationMatrix());
 };
@@ -1162,27 +1168,27 @@ void IccScaledMisalignedImu::ImuParameters::printDetails(
   IccImu::ImuParameters::printDetails(out);
   auto gyroscopes = std::any_cast<std::unordered_map<std::string, std::any>>(
       data_.at("gyroscopes"));
-  out << "  Gyroscope: " << std::endl;
-  out << "    M:" << std::endl;
-  out << formatIndented("      ",
-                        std::any_cast<std::vector<double>>(gyroscopes.at("M")))
-      << std::endl;
-  out << "    A [(rad/s)/(m/s^2)]:" << std::endl;
-  out << formatIndented("    ",
-                        std::any_cast<std::vector<double>>(gyroscopes.at("A")))
-      << std::endl;
-  out << "    C_gyro_i:" << std::endl;
-  out << formatIndented("    ", std::any_cast<std::vector<double>>(
-                                    gyroscopes.at("C_gyro_i")))
-      << std::endl;
-  out << "  Accelerometer: " << std::endl;
-  out << "    M:" << std::endl;
+  std::println(out, "  Gyroscope:");
+  std::println(out, "    M:");
+  std::println(out, "{}",
+               formatIndented("      ", std::any_cast<std::vector<double>>(
+                                            gyroscopes.at("M"))));
+  std::println(out, "    A [(rad/s)/(m/s^2)]:");
+  std::println(out, "{}",
+               formatIndented("    ", std::any_cast<std::vector<double>>(
+                                          gyroscopes.at("A"))));
+  std::println(out, "    C_gyro_i:");
+  std::println(out, "{}",
+               formatIndented("    ", std::any_cast<std::vector<double>>(
+                                          gyroscopes.at("C_gyro_i"))));
+  std::println(out, "  Accelerometer:");
+  std::println(out, "    M:");
   auto accelerometers =
       std::any_cast<std::unordered_map<std::string, std::any>>(
           data_.at("accelerometers"));
-  out << formatIndented("      ", std::any_cast<std::vector<double>>(
-                                      accelerometers.at("M")))
-      << std::endl;
+  std::println(out, "{}",
+               formatIndented("      ", std::any_cast<std::vector<double>>(
+                                            accelerometers.at("M"))));
 }
 
 void IccScaledMisalignedImu::ImuParameters::setIntrisicsMatrices(
@@ -1221,14 +1227,16 @@ IccScaledMisalignedImu::getImuConfig() {
   return imuConfig_;
 }
 
-
-
 void IccScaledMisalignedImu::addAccelerometerErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
     aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
     const aslam::backend::EuclideanExpression& g_w, double mSigma,
     double accelNoiseScale) {
-  std::cout << "\nAdding accelerometer error terms..." << std::endl;
+  std::println("\nAdding accelerometer error terms...");
+
+  auto iProgress = sm::progress::Progress2(imuData_.size());
+  iProgress.sample();
+
   double weight = 1.0 / (accelNoiseScale);
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
   int num_skipped = 0;
@@ -1267,10 +1275,12 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
     } else {
       num_skipped++;
     }
+    iProgress.sample();
   }
-  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
-            << imuData_.size() << " accelerometer error terms (skipped "
-            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  std::println(
+      "  Added {} of {} accelerometer error terms (skipped {} out-of-bounds "
+      "measurements)",
+      imuData_.size() - num_skipped, imuData_.size(), num_skipped);
   accelErrors_.swap(accelErrors);
 }
 
@@ -1278,7 +1288,11 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
     aslam::splines::BSplinePoseDesignVariable& poseSplineDv, double mSigma,
     double gyroNoiseScale, const aslam::backend::EuclideanExpression& g_w) {
-  std::cout << "\nAdding gyroscope error terms..." << std::endl;
+  std::println("\nAdding gyroscope error terms...");
+
+  auto iProgress = sm::progress::Progress2(imuData_.size());
+  iProgress.sample();
+
   double weight = 1.0 / (gyroNoiseScale);
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors;
   int num_skipped = 0;
@@ -1321,10 +1335,12 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
     } else {
       num_skipped++;
     }
+    iProgress.sample();
   }
-  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
-            << imuData_.size() << " accelerometer error terms (skipped "
-            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  std::println(
+      "  Added {} of {} gyroscope error terms (skipped {} out-of-bounds "
+      "measurements)",
+      imuData_.size() - num_skipped, imuData_.size(), num_skipped);
   gyroErrors_.swap(gyroErrors);
 }
 
@@ -1345,18 +1361,18 @@ void IccScaledMisalignedSizeEffectImu::ImuParameters::printDetails(
   auto accelerometers =
       std::any_cast<std::unordered_map<std::string, std::any>>(
           data_.at("accelerometers"));
-  out << "    rx_i [(m)]: " << std::endl;
-  out << formatIndented("      ", std::any_cast<std::vector<double>>(
-                                      accelerometers.at("rx_i")))
-      << std::endl;
-  out << "    ry_i [(m)]: " << std::endl;
-  out << formatIndented("      ", std::any_cast<std::vector<double>>(
-                                      accelerometers.at("ry_i")))
-      << std::endl;
-  out << "    rz_i [(m)]: " << std::endl;
-  out << formatIndented("      ", std::any_cast<std::vector<double>>(
-                                      accelerometers.at("rz_i")))
-      << std::endl;
+  std::println(out, "    rx_i [(m)]:");
+  std::println(out, "{}",
+               formatIndented("      ", std::any_cast<std::vector<double>>(
+                                            accelerometers.at("rx_i"))));
+  std::println(out, "    ry_i [(m)]:");
+  std::println(out, "{}",
+               formatIndented("      ", std::any_cast<std::vector<double>>(
+                                            accelerometers.at("ry_i"))));
+  std::println(out, "    rz_i [(m)]:");
+  std::println(out, "{}",
+               formatIndented("      ", std::any_cast<std::vector<double>>(
+                                            accelerometers.at("rz_i"))));
 }
 
 void IccScaledMisalignedSizeEffectImu::ImuParameters::setAccelerometerLeverArms(
@@ -1379,8 +1395,6 @@ IccScaledMisalignedSizeEffectImu::IccScaledMisalignedSizeEffectImu(
                              estimateTimeDelay, imuNr),
       imuConfig_(imuConfig, imuNr) {}
 
-
-
 void IccScaledMisalignedSizeEffectImu::updateImuConfig() {
   IccScaledMisalignedImu::updateImuConfig();
   imuConfig_.setAccelerometerLeverArms(rx_i_Dv_->toEuclidean(),
@@ -1399,7 +1413,11 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
     aslam::splines::BSplinePoseDesignVariable& poseSplineDv,
     const aslam::backend::EuclideanExpression& g_w, double mSigma,
     double accelNoiseScale) {
-  std::cout << "\nAdding accelerometer error terms..." << std::endl;
+  std::println("\nAdding accelerometer error terms...");
+
+  auto iProgress = sm::progress::Progress2(imuData_.size());
+  iProgress.sample();
+
   double weight = 1.0 / (accelNoiseScale);
   std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
   int num_skipped = 0;
@@ -1450,10 +1468,12 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
     } else {
       num_skipped++;
     }
+    iProgress.sample();
   }
-  std::cout << "  Added " << imuData_.size() - num_skipped << " of "
-            << imuData_.size() << " accelerometer error terms (skipped "
-            << num_skipped << " out-of-bounds measurements)" << std::endl;
+  std::println(
+      "  Added {} of {} accelerometer error terms (skipped {} out-of-bounds "
+      "measurements)",
+      imuData_.size() - num_skipped, imuData_.size(), num_skipped);
   accelErrors_.swap(accelErrors);
 }
 }  // namespace kalibr

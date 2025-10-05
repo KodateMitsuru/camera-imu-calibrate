@@ -4,6 +4,7 @@
 #include <iostream>
 #include <kalibr_common/ConfigReader.hpp>
 #include <opencv2/core/persistence.hpp>
+#include <print>
 #include <stdexcept>
 
 // ASLAM camera includes
@@ -19,7 +20,6 @@
 #include <aslam/cameras/PinholeProjection.hpp>
 #include <aslam/cameras/RadialTangentialDistortion.hpp>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 // ASLAM backend includes
 #include <aslam/Frame.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
@@ -115,8 +115,7 @@ TargetType stringToTargetType(const std::string& str) {
 // ============================================================================
 
 ParametersBase::ParametersBase(const std::string& yamlFile,
-                               const std::string& name,
-                               bool createYaml)
+                               const std::string& name, bool createYaml)
     : yamlFile_(yamlFile), name_(name) {
   if (createYaml) {
     data_.clear();
@@ -127,7 +126,7 @@ ParametersBase::ParametersBase(const std::string& yamlFile,
 
 ParametersBase::DictType ParametersBase::readYaml() {
   DictType data;
-  try{
+  try {
     cv::FileStorage fs(yamlFile_, cv::FileStorage::READ);
     if (!fs.isOpened()) {
       raiseError("Could not read configuration from " + yamlFile_);
@@ -149,7 +148,7 @@ void ParametersBase::writeYaml(const std::string& filename) {
     filename_ = yamlFile_;
   }
 
-  try{
+  try {
     cv::FileStorage fs(filename_, cv::FileStorage::WRITE);
     if (!fs.isOpened()) {
       raiseError("Could not write configuration to " + filename_);
@@ -187,7 +186,8 @@ void ParametersBase::writeYaml(const std::string& filename) {
           } else if (nestedValue.type() == typeid(std::vector<double>)) {
             fs << nestedKey << std::any_cast<std::vector<double>>(nestedValue);
           } else if (nestedValue.type() == typeid(std::vector<std::string>)) {
-            fs << nestedKey << std::any_cast<std::vector<std::string>>(nestedValue);
+            fs << nestedKey
+               << std::any_cast<std::vector<std::string>>(nestedValue);
           } else {
             raiseError("Unsupported data type for key: " + nestedKey);
           }
@@ -204,13 +204,9 @@ void ParametersBase::writeYaml(const std::string& filename) {
   }
 }
 
-ParametersBase::DictType ParametersBase::getYamlDict() const {
-  return data_;
-}
+ParametersBase::DictType ParametersBase::getYamlDict() const { return data_; }
 
-void ParametersBase::setYamlDict(const DictType& dict) {
-  data_ = dict;
-}
+void ParametersBase::setYamlDict(const DictType& dict) { data_ = dict; }
 
 void ParametersBase::raiseError(const std::string& message) const {
   throw std::runtime_error("[" + name_ + " Reader]: " + message);
@@ -220,8 +216,7 @@ void ParametersBase::raiseError(const std::string& message) const {
 // CameraParameters Implementation
 // ============================================================================
 
-CameraParameters::CameraParameters(const std::string& yamlFile,
-                                   bool createYaml)
+CameraParameters::CameraParameters(const std::string& yamlFile, bool createYaml)
     : ParametersBase(yamlFile, "CameraConfig", createYaml) {}
 
 std::string CameraParameters::getImageFolder() const {
@@ -329,7 +324,7 @@ void CameraParameters::setLineDelay(double lineDelay) {
 
 double CameraParameters::getReprojectionSigma() const {
   double sigma = 1.0;
-  if(data_.find("reprojection_sigma") != data_.end()) {
+  if (data_.find("reprojection_sigma") != data_.end()) {
     sigma = std::any_cast<double>(data_.at("reprojection_sigma"));
   }
   return sigma;
@@ -435,45 +430,43 @@ void CameraParameters::printDetails(std::ostream& os) const {
   auto [distModel, distCoeffs] = getDistortion();
   auto resolution = getResolution();
 
-  os << "  Camera model: " << cameraModelToString(model) << std::endl;
+  std::println(os, "  Camera model: {}", cameraModelToString(model));
 
   if (model == CameraModel::Pinhole) {
-    os << "  Focal length: [" << intrinsics[0] << ", " << intrinsics[1] << "]"
-       << std::endl;
-    os << "  Principal point: [" << intrinsics[2] << ", " << intrinsics[3]
-       << "]" << std::endl;
+    std::println(os, "  Focal length: [{}, {}]", intrinsics[0], intrinsics[1]);
+    std::println(os, "  Principal point: [{}, {}]", intrinsics[2],
+                 intrinsics[3]);
   } else if (model == CameraModel::Omni) {
-    os << "  Omni xi: " << intrinsics[0] << std::endl;
-    os << "  Focal length: [" << intrinsics[1] << ", " << intrinsics[2] << "]"
-       << std::endl;
-    os << "  Principal point: [" << intrinsics[3] << ", " << intrinsics[4]
-       << "]" << std::endl;
+    std::println(os, "  Omni xi: {}", intrinsics[0]);
+    std::println(os, "  Focal length: [{}, {}]", intrinsics[1], intrinsics[2]);
+    std::println(os, "  Principal point: [{}, {}]", intrinsics[3],
+                 intrinsics[4]);
   } else if (model == CameraModel::EUCM) {
-    os << "  EUCM alpha: " << intrinsics[0] << std::endl;
-    os << "  EUCM beta: " << intrinsics[1] << std::endl;
-    os << "  Focal length: [" << intrinsics[2] << ", " << intrinsics[3] << "]"
-       << std::endl;
-    os << "  Principal point: [" << intrinsics[4] << ", " << intrinsics[5]
-       << "]" << std::endl;
+    std::println(os, "  EUCM alpha: {}", intrinsics[0]);
+    std::println(os, "  EUCM beta: {}", intrinsics[1]);
+    std::println(os, "  Focal length: [{}, {}]", intrinsics[2], intrinsics[3]);
+    std::println(os, "  Principal point: [{}, {}]", intrinsics[4],
+                 intrinsics[5]);
   } else if (model == CameraModel::DS) {
-    os << "  DS xi: " << intrinsics[0] << std::endl;
-    os << "  DS alpha: " << intrinsics[1] << std::endl;
-    os << "  Focal length: [" << intrinsics[2] << ", " << intrinsics[3] << "]"
-       << std::endl;
-    os << "  Principal point: [" << intrinsics[4] << ", " << intrinsics[5]
-       << "]" << std::endl;
+    std::println(os, "  DS xi: {}", intrinsics[0]);
+    std::println(os, "  DS alpha: {}", intrinsics[1]);
+    std::println(os, "  Focal length: [{}, {}]", intrinsics[2], intrinsics[3]);
+    std::println(os, "  Principal point: [{}, {}]", intrinsics[4],
+                 intrinsics[5]);
   }
 
-  os << "  Distortion model: " << distortionModelToString(distModel)
-     << std::endl;
-  os << "  Distortion coefficients: [";
+  std::println(os, "  Distortion model: {}",
+               distortionModelToString(distModel));
+
+  std::string coeffStr = "[";
   for (size_t i = 0; i < distCoeffs.size(); ++i) {
-    if (i > 0) os << ", ";
-    os << distCoeffs[i];
+    if (i > 0) coeffStr += ", ";
+    coeffStr += std::format("{}", distCoeffs[i]);
   }
-  os << "]" << std::endl;
-  os << "  Resolution: [" << resolution.x() << ", " << resolution.y() << "]"
-     << std::endl;
+  coeffStr += "]";
+  std::println(os, "  Distortion coefficients: {}", coeffStr);
+
+  std::println(os, "  Resolution: [{}, {}]", resolution.x(), resolution.y());
 }
 
 // ============================================================================
@@ -590,35 +583,34 @@ void ImuParameters::printDetails(std::ostream& os) const {
   auto [gyroDiscrete, gyroRandomWalk, gyroContinuous] =
       getGyroscopeStatistics();
 
-  os << "  Update rate: " << updateRate << " Hz" << std::endl;
-  os << "  Accelerometer:" << std::endl;
-  os << "    Noise density: " << accelContinuous << std::endl;
-  os << "    Noise density (discrete): " << accelDiscrete << std::endl;
-  os << "    Random walk: " << accelRandomWalk << std::endl;
-  os << "  Gyroscope:" << std::endl;
-  os << "    Noise density: " << gyroContinuous << std::endl;
-  os << "    Noise density (discrete): " << gyroDiscrete << std::endl;
-  os << "    Random walk: " << gyroRandomWalk << std::endl;
+  std::println(os, "  Update rate: {} Hz", updateRate);
+  std::println(os, "  Accelerometer:");
+  std::println(os, "    Noise density: {}", accelContinuous);
+  std::println(os, "    Noise density (discrete): {}", accelDiscrete);
+  std::println(os, "    Random walk: {}", accelRandomWalk);
+  std::println(os, "  Gyroscope:");
+  std::println(os, "    Noise density: {}", gyroContinuous);
+  std::println(os, "    Noise density (discrete): {}", gyroDiscrete);
+  std::println(os, "    Random walk: {}", gyroRandomWalk);
 }
 
 // ============================================================================
 // ImuSetParameters Implementation
 // ============================================================================
 
-ImuSetParameters::ImuSetParameters(const std::string& yamlFile,
-                                   bool createYaml)
+ImuSetParameters::ImuSetParameters(const std::string& yamlFile, bool createYaml)
     : ParametersBase(yamlFile, "ImuSetConfig", createYaml) {
-      imuCount_ = 0;
-    }
+  imuCount_ = 0;
+}
 
-    void ImuSetParameters::addImuConfig(const ImuParameters& imuConfig,
-                                        std::string name) {
-      if(name.empty()){
-        name = "imu_" + std::to_string(imuCount_);
-      }
-      data_[name] = imuConfig.getYamlDict();
-      imuCount_++;
-    }
+void ImuSetParameters::addImuConfig(const ImuParameters& imuConfig,
+                                    std::string name) {
+  if (name.empty()) {
+    name = "imu_" + std::to_string(imuCount_);
+  }
+  data_[name] = imuConfig.getYamlDict();
+  imuCount_++;
+}
 
 // ============================================================================
 // CalibrationTargetParameters Implementation
@@ -710,31 +702,30 @@ void CalibrationTargetParameters::checkTargetType(TargetType) const {
 
 void CalibrationTargetParameters::printDetails(std::ostream& os) const {
   TargetType type = getTargetType();
-  os << "  Type: " << targetTypeToString(type) << std::endl;
+  std::println(os, "  Type: {}", targetTypeToString(type));
 
   if (type == TargetType::Checkerboard) {
     auto params = getCheckerboardParams();
-    os << "  Rows:" << std::endl;
-    os << "    Count: " << params.rows << std::endl;
-    os << "    Distance: " << params.rowSpacing << " m" << std::endl;
-    os << "  Cols:" << std::endl;
-    os << "    Count: " << params.cols << std::endl;
-    os << "    Distance: " << params.colSpacing << " m" << std::endl;
+    std::println(os, "  Rows:");
+    std::println(os, "    Count: {}", params.rows);
+    std::println(os, "    Distance: {} m", params.rowSpacing);
+    std::println(os, "  Cols:");
+    std::println(os, "    Count: {}", params.cols);
+    std::println(os, "    Distance: {} m", params.colSpacing);
   } else if (type == TargetType::Aprilgrid) {
     auto params = getAprilgridParams();
-    os << "  Tags:" << std::endl;
-    os << "    Rows: " << params.tagRows << std::endl;
-    os << "    Cols: " << params.tagCols << std::endl;
-    os << "    Size: " << params.tagSize << " m" << std::endl;
-    os << "    Spacing: " << (params.tagSize * params.tagSpacing) << " m"
-       << std::endl;
+    std::println(os, "  Tags:");
+    std::println(os, "    Rows: {}", params.tagRows);
+    std::println(os, "    Cols: {}", params.tagCols);
+    std::println(os, "    Size: {} m", params.tagSize);
+    std::println(os, "    Spacing: {} m", params.tagSize * params.tagSpacing);
   } else if (type == TargetType::Circlegrid) {
     auto params = getCirclegridParams();
-    os << "  Circles:" << std::endl;
-    os << "    Rows: " << params.rows << std::endl;
-    os << "    Cols: " << params.cols << std::endl;
-    os << "    Spacing: " << params.spacing << " m" << std::endl;
-    os << "    Asymmetric: " << (params.asymmetric ? "yes" : "no") << std::endl;
+    std::println(os, "  Circles:");
+    std::println(os, "    Rows: {}", params.rows);
+    std::println(os, "    Cols: {}", params.cols);
+    std::println(os, "    Spacing: {} m", params.spacing);
+    std::println(os, "    Asymmetric: {}", params.asymmetric ? "yes" : "no");
   }
 }
 
@@ -752,7 +743,8 @@ std::shared_ptr<CameraParameters> CameraChainParameters::getCameraParameters(
     size_t camIdx) const {
   checkCameraIndex(camIdx);
   auto param = std::make_shared<CameraParameters>("TEMP_CONFIG", true);
-  param->setYamlDict(std::any_cast<ParametersBase::DictType>(data_.at("cam" + std::to_string(camIdx))));
+  param->setYamlDict(std::any_cast<ParametersBase::DictType>(
+      data_.at("cam" + std::to_string(camIdx))));
   return param;
 }
 
@@ -775,7 +767,8 @@ CameraChainParameters::getExtrinsicsLastCamToHere(size_t camIdx) const {
         t_vec.data());
     trafo = sm::kinematics::Transformation(t_mat);
   } catch (...) {
-    raiseError("invalid camera baseline (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
+    raiseError("invalid camera baseline (cam" + std::to_string(camIdx) +
+               " in " + yamlFile_ + ")");
   }
   return trafo;
 }
@@ -788,9 +781,9 @@ void CameraChainParameters::setExtrinsicsLastCamToHere(
         "setExtrinsicsLastCamToHere(): can't set extrinsics for first cam in "
         "chain (cam0=base)");
   }
-  auto t_vec = std::vector<double>(T.T().data(),
-                                        T.T().data() + T.T().size());
-  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["T_cn_cnm1"] = t_vec;
+  auto t_vec = std::vector<double>(T.T().data(), T.T().data() + T.T().size());
+  std::any_cast<std::unordered_map<std::string, std::any>&>(
+      data_["cam" + std::to_string(camIdx)])["T_cn_cnm1"] = t_vec;
 }
 
 sm::kinematics::Transformation CameraChainParameters::getExtrinsicsImuToCam(
@@ -802,35 +795,39 @@ sm::kinematics::Transformation CameraChainParameters::getExtrinsicsImuToCam(
         std::any_cast<ParametersBase::DictType>(
             data_.at("cam" + std::to_string(camIdx)))
             .at("T_cam_imu"));
-    T = sm::kinematics::Transformation(Eigen::Map<const Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(t_vec.data()));
+    T = sm::kinematics::Transformation(
+        Eigen::Map<const Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(
+            t_vec.data()));
   } catch (...) {
-    raiseError("invalid T_cam_imu (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
+    raiseError("invalid T_cam_imu (cam" + std::to_string(camIdx) + " in " +
+               yamlFile_ + ")");
   }
   return T;
 }
 
-void CameraChainParameters::setExtrinsicsImuToCam(size_t camIdx,
-                                                  const sm::kinematics::Transformation& T) {
+void CameraChainParameters::setExtrinsicsImuToCam(
+    size_t camIdx, const sm::kinematics::Transformation& T) {
   checkCameraIndex(camIdx);
-  auto t_vec = std::vector<double>(T.T().data(),
-                                        T.T().data() + T.T().size());
-  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["T_cam_imu"] = t_vec;
+  auto t_vec = std::vector<double>(T.T().data(), T.T().data() + T.T().size());
+  std::any_cast<std::unordered_map<std::string, std::any>&>(
+      data_["cam" + std::to_string(camIdx)])["T_cam_imu"] = t_vec;
 }
 
 double CameraChainParameters::getTimeshiftCamImu(size_t camIdx) const {
   checkCameraIndex(camIdx);
   double timeshift = 0.0;
-  timeshift = std::any_cast<double>(
-      std::any_cast<ParametersBase::DictType>(
-          data_.at("cam" + std::to_string(camIdx)))
-          .at("timeshift_cam_imu"));
+  timeshift =
+      std::any_cast<double>(std::any_cast<ParametersBase::DictType>(
+                                data_.at("cam" + std::to_string(camIdx)))
+                                .at("timeshift_cam_imu"));
   return timeshift;
 }
 
 void CameraChainParameters::setTimeshiftCamImu(size_t camIdx,
                                                double timeshift) {
   checkCameraIndex(camIdx);
-  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["timeshift_cam_imu"] = timeshift;
+  std::any_cast<std::unordered_map<std::string, std::any>&>(
+      data_["cam" + std::to_string(camIdx)])["timeshift_cam_imu"] = timeshift;
 }
 
 std::vector<int> CameraChainParameters::getCamOverlaps(size_t camIdx) const {
@@ -839,9 +836,11 @@ std::vector<int> CameraChainParameters::getCamOverlaps(size_t camIdx) const {
   try {
     overlaps = std::any_cast<std::vector<int>>(
         std::any_cast<ParametersBase::DictType>(
-            data_.at("cam" + std::to_string(camIdx))).at("overlaps"));
+            data_.at("cam" + std::to_string(camIdx)))
+            .at("overlaps"));
   } catch (...) {
-    raiseError("invalid overlaps (cam" + std::to_string(camIdx) + " in " + yamlFile_ + ")");
+    raiseError("invalid overlaps (cam" + std::to_string(camIdx) + " in " +
+               yamlFile_ + ")");
   }
   return overlaps;
 }
@@ -849,7 +848,8 @@ std::vector<int> CameraChainParameters::getCamOverlaps(size_t camIdx) const {
 void CameraChainParameters::setCamOverlaps(size_t camIdx,
                                            const std::vector<int>& overlaps) {
   checkCameraIndex(camIdx);
-  std::any_cast<std::unordered_map<std::string, std::any>&>(data_["cam" + std::to_string(camIdx)])["overlaps"] = overlaps;
+  std::any_cast<std::unordered_map<std::string, std::any>&>(
+      data_["cam" + std::to_string(camIdx)])["overlaps"] = overlaps;
 }
 
 void CameraChainParameters::checkCameraIndex(size_t camIdx) const {
@@ -861,29 +861,30 @@ void CameraChainParameters::checkCameraIndex(size_t camIdx) const {
 
 void CameraChainParameters::printDetails(std::ostream& os) const {
   for (size_t i = 0; i < numCameras(); ++i) {
-    os << "Camera chain - cam" << i << ":" << std::endl;
+    std::println(os, "Camera chain - cam{}:", i);
 
     // Print extrinsics if available
     if (i > 0) {
       try {
         sm::kinematics::Transformation T = getExtrinsicsLastCamToHere(i);
-        os << "  Baseline (T_cn_cnm1):" << std::endl;
-        os << T.T() << std::endl;
+        std::println(os, "  Baseline (T_cn_cnm1):");
+        os << T.T()
+           << std::endl;  // Eigen matrix output requires stream operator
       } catch (...) {
-        os << "  Baseline: no data available" << std::endl;
+        std::println(os, "  Baseline: no data available");
       }
     }
 
     try {
       sm::kinematics::Transformation T = getExtrinsicsImuToCam(i);
-      os << "  T_cam_imu:" << std::endl;
-      os << T.T() << std::endl;
+      std::println(os, "  T_cam_imu:");
+      os << T.T() << std::endl;  // Eigen matrix output requires stream operator
     } catch (...) {
-      os << "  T_cam_imu: no data available" << std::endl;
+      std::println(os, "  T_cam_imu: no data available");
     }
 
     double timeshift = getTimeshiftCamImu(i);
-    os << "  Timeshift cam-imu: " << timeshift << " s" << std::endl;
+    std::println(os, "  Timeshift cam-imu: {} s", timeshift);
   }
 }
 

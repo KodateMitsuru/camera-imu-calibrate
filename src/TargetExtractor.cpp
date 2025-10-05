@@ -1,52 +1,13 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <iomanip>
-#include <iostream>
 #include <kalibr_common/TargetExtractor.hpp>
 #include <opencv2/highgui.hpp>
+#include <print>
+#include <sm/progress/Progress.hpp>
 #include <thread>
 
 namespace kalibr {
-
-/**
- * @brief Simple progress indicator for corner extraction
- */
-class ProgressIndicator {
- public:
-  ProgressIndicator(size_t total)
-      : total_(total),
-        processed_(0),
-        lastUpdate_(std::chrono::steady_clock::now()) {
-    std::cout << "Extracting calibration target corners" << std::endl;
-  }
-
-  void sample(size_t count = 1) {
-    processed_ += count;
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate_)
-            .count();
-
-    // Update every 100ms
-    if (elapsed >= 100 || processed_ == total_) {
-      double percentage = (100.0 * processed_) / total_;
-      std::cout << "\r  Progress: " << processed_ << "/" << total_ << " ("
-                << std::fixed << std::setprecision(1) << percentage << "%)"
-                << std::flush;
-      lastUpdate_ = now;
-    }
-
-    if (processed_ == total_) {
-      std::cout << std::endl;
-    }
-  }
-
- private:
-  size_t total_;
-  std::atomic<size_t> processed_;
-  std::chrono::steady_clock::time_point lastUpdate_;
-};
 
 void multicoreExtractionWorker(aslam::cameras::GridDetector detector,
                                const std::vector<ExtractionTask>& tasks,
@@ -85,9 +46,8 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
       targetObservations;
   size_t numImages = dataset.numImages();
 
-  // Prepare progress bar
-  ProgressIndicator progress(numImages);
-  progress.sample(0);
+  auto iProgress = sm::progress::Progress2(numImages);
+  iProgress.sample();
 
   if (multithreading) {
     // Auto-detect number of threads
@@ -95,8 +55,7 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
       numProcesses = std::max(1u, std::thread::hardware_concurrency() - 1);
     }
 
-    std::cout << "  Using " << numProcesses << " threads for extraction"
-              << std::endl;
+    std::println("  Using {} threads for extraction", numProcesses);
 
     try {
       // Prepare all tasks
@@ -146,7 +105,7 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
           }
 
           if (totalCompleted > lastCompleted) {
-            progress.sample(totalCompleted - lastCompleted);
+            iProgress.sample(totalCompleted - lastCompleted);
             lastCompleted = totalCompleted;
           }
 
@@ -209,19 +168,20 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
         targetObservations.push_back(observation);
       }
 
-      progress.sample();
+      iProgress.sample();
     }
   }
 
   if (targetObservations.empty()) {
-    std::cerr << "\r" << std::endl;
+    std::println(stderr, "\r");
     throw std::runtime_error(
         "No corners could be extracted for camera " + dataset.getTopic() +
         "! Check the calibration target configuration and dataset.");
   } else {
-    std::cout << "\r  Extracted corners for " << targetObservations.size()
-              << " images (of " << numImages
-              << " images)                              " << std::endl;
+    std::println(
+        "\r  Extracted corners for {} images (of {} images)                    "
+        "          ",
+        targetObservations.size(), numImages);
   }
 
   // Close all OpenCV windows that might be open
