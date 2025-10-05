@@ -1,4 +1,4 @@
-#include <rapidcsv.h>
+#include <rapidcsv.hpp>
 
 #include <algorithm>
 #include <filesystem>

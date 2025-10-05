@@ -1,89 +1,72 @@
-// #include <matplot/matplot.h>
+#include "matplot/freestanding/axes_functions.h"
+#include <matplot/matplot.h>
 
-// #include <Eigen/Core>
-// #include <IccCalibrator.hpp>
-// #include <IccPlots.hpp>
-// #include <IccSensors.hpp>
-// #include <cmath>
-// #include <iostream>
-// #include <vector>
+#include <Eigen/Core>
+#include <IccCalibrator.hpp>
+#include <IccPlots.hpp>
+#include <IccSensors.hpp>
+#include <cmath>
+#include <iostream>
+#include <numeric>
+#include <vector>
 
-// namespace kalibr {
+namespace kalibr {
 
-// void plotIMURates(const IccCalibrator& calibrator, int imuIdx, int figureNumber,
-//                   bool clearFigure, bool noShow) {
-//   auto& imuList = calibrator.getImuList();
-//   if (imuIdx >= static_cast<int>(imuList.size())) {
-//     std::cerr << "IMU index out of range" << std::endl;
-//     return;
-//   }
+void plotIMURates(const IccCalibrator& calibrator, int imuIdx, int figureNumber,
+                  bool clearFigure, bool noShow) {
+  auto& imuList = calibrator.getImuList();
+  auto& imu = imuList[imuIdx];
+  auto bodyspline = calibrator.getPoseDv()->spline();
 
-//   auto& imu = imuList[imuIdx];
-//   auto bodyspline = calibrator.getPoseDv()->spline();
+  // Get timestamps
+  std::vector<double> timestamps;
+  for (const auto& im : imu->getImuData()) {
+    double t = im.stamp.toSec() + imu->getTimeOffset();
+    if (t > bodyspline.t_min() && t < bodyspline.t_max()) {
+      timestamps.push_back(t);
+    }
+  }
 
-//   // Get timestamps
-//   std::vector<double> timestamps;
-//   for (const auto& im : imu->getImuData()) {
-//     double t = im.timestamp.toSec() + imu->getTimeOffset();
-//     if (t > bodyspline.t_min() && t < bodyspline.t_max()) {
-//       timestamps.push_back(t);
-//     }
-//   }
+  double scale = 1000.0;
+  std::string unit = "ms";
+  double z_thresh = 1.2;
 
-//   double scale = 1000.0;
-//   std::string unit = "ms";
-//   double z_thresh = 1.2;
+  // Calculate relative rate between readings
+  std::vector<double> times;
+  std::vector<double> rates;
 
-//   // Calculate relative rate between readings
-//   std::vector<double> times;
-//   std::vector<double> rates;
+  for (size_t idx = 1; idx < timestamps.size(); ++idx) {
+    times.push_back(timestamps[idx]);
+    rates.push_back((timestamps[idx] - timestamps[idx - 1]) * scale);
+  }
 
-//   for (size_t idx = 1; idx < timestamps.size(); ++idx) {
-//     times.push_back(timestamps[idx]);
-//     rates.push_back((timestamps[idx] - timestamps[idx - 1]) * scale);
-//   }
+  if (rates.empty()) return;
 
-//   if (rates.empty()) return;
+  double rate_avg =
+      std::accumulate(rates.begin(), rates.end(), 0.0) / rates.size();
+  double rate_std = std::accumulate(rates.begin(), rates.end(), 0.0,
+                                    [rate_avg](double acc, double r) {
+                                      return acc + (r - rate_avg) * (r - rate_avg);
+                                    });
+  rate_std = std::sqrt(rate_std / rates.size());
 
-//   double rate_avg =
-//       std::accumulate(rates.begin(), rates.end(), 0.0) / rates.size();
-//   double rate_std = 0.0;
-//   for (double r : rates) {
-//     rate_std += (r - rate_avg) * (r - rate_avg);
-//   }
-//   rate_std = std::sqrt(rate_std / rates.size());
+  // Z-test to find outliers
+  std::vector<int> sizes(rates.size(), 1);
+  std::vector<char> colors(rates.size(), 'b');  // Blue for inliers
 
-//   // Z-test to find outliers
-//   std::vector<double> sizes;
-//   std::vector<double> colors;
+  // Plot
+  auto fig = matplot::subplot(2, 1, 1);
 
-//   for (double rate : rates) {
-//     double z = std::abs((rate - rate_avg) / rate_std);
-//     if (z > z_thresh) {
-//       sizes.push_back(50.0);
-//       colors.push_back(1.0);  // Red for outliers
-//     } else {
-//       sizes.push_back(10.0);
-//       colors.push_back(0.0);  // Blue for inliers
-//     }
-//   }
+  matplot::scatter(times, rates);
+  matplot::title("imu" + std::to_string(imuIdx) + ": sample inertial rate");
+  matplot::xlabel("time (s)");
+  matplot::ylabel("sample rate (" + unit + ")");
+  matplot::grid(matplot::on);
 
-//   // Plot
-//   auto fig = matplot::figure(figureNumber);
-//   if (clearFigure) {
-//     fig->clear();
-//   }
-
-//   matplot::scatter(times, rates);
-//   matplot::title("imu" + std::to_string(imuIdx) + ": sample inertial rate");
-//   matplot::xlabel("time (s)");
-//   matplot::ylabel("sample rate (" + unit + ")");
-//   matplot::grid(matplot::on);
-
-//   if (!noShow) {
-//     matplot::show();
-//   }
-// }
+  if (!noShow) {
+    matplot::show();
+  }
+}
 
 // void plotGyroError(const IccCalibrator& calibrator, int imuIdx,
 //                    int figureNumber, bool clearFigure, bool noShow) {
@@ -363,4 +346,4 @@
 //                                   clearFigure, noShow);
 // }
 
-// }  // namespace kalibr
+}  // namespace kalibr

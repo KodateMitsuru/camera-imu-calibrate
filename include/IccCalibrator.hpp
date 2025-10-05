@@ -16,6 +16,7 @@
 #include <concepts>
 #include <memory>
 #include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "IccSensors.hpp"
@@ -96,9 +97,15 @@ class IccCalibrator {
   std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> getPoseDv() const {
     return poseDv_;
   }
+  // 保存gravityDv_的实际类型信息
+  std::size_t getGravityDvType() const {
+    return gravityDvType_;
+  }
+
   std::shared_ptr<aslam::backend::DesignVariable> getGravityDv() const {
     return gravityDv_;
   }
+
   std::shared_ptr<aslam::backend::EuclideanExpression> getGravityExpression()
       const {
     return gravityExpression_;
@@ -110,11 +117,24 @@ class IccCalibrator {
     return cameraChain_;
   }
 
+  const Eigen::VectorXd& getStdTrafoIc() const {
+    return std_trafo_ic_;
+  }
+
+  const Eigen::VectorXd& getStdTimes() const {
+    return std_times_;
+  }
+
+  bool noTimeCalibration() const {
+    return noTimeCalibration_;
+  }
+
  private:
   std::vector<std::shared_ptr<IccImu>> imuList_;
   std::shared_ptr<IccCameraChain> cameraChain_;
   std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> poseDv_;
   std::shared_ptr<aslam::backend::DesignVariable> gravityDv_;
+  std::size_t gravityDvType_;
   std::shared_ptr<aslam::backend::EuclideanExpression> gravityExpression_;
   std::shared_ptr<aslam::calibration::OptimizationProblem> problem_;
   std::shared_ptr<aslam::backend::Optimizer2> optimizer_;

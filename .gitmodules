@@ -1,9 +1,3 @@
-[submodule "thirdparty/matplotplusplus"]
-	path = thirdparty/matplotplusplus
-	url = https://github.com/alandefreitas/matplotplusplus/
 [submodule "thirdparty/argparse"]
 	path = thirdparty/argparse
 	url = https://github.com/p-ranav/argparse.git
-[submodule "thirdparty/rapidcsv"]
-	path = thirdparty/rapidcsv
-	url = https://github.com/d99kris/rapidcsv

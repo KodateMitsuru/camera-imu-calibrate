@@ -68,13 +68,22 @@ void addSplineDesignVariables(ProblemType& problem,
     dv->setActive(setActive);
     if constexpr (requires { problem.addDesignVariable(dv, group_id); }) {
       problem.addDesignVariable(dv, group_id);
-    } else if constexpr (requires { problem.addDesignVariable(dv.get(), group_id); }) {
+    } else if constexpr (requires {
+                           problem.addDesignVariable(dv.get(), group_id);
+                         }) {
       problem.addDesignVariable(dv.get(), group_id);
-    } else if constexpr (requires { problem.addDesignVariable(std::shared_ptr<aslam::backend::DesignVariable>(dv), group_id); }) {
-      problem.addDesignVariable(std::shared_ptr<aslam::backend::DesignVariable>(dv), group_id);
+    } else if constexpr (requires {
+                           problem.addDesignVariable(
+                               std::shared_ptr<aslam::backend::DesignVariable>(
+                                   dv),
+                               group_id);
+                         }) {
+      problem.addDesignVariable(
+          std::shared_ptr<aslam::backend::DesignVariable>(dv), group_id);
     } else {
-      static_assert([]() { return false; }(),
-                    "No suitable addDesignVariable method found in ProblemType");
+      static_assert(
+          []() { return false; }(),
+          "No suitable addDesignVariable method found in ProblemType");
     }
   }
 }
@@ -135,10 +144,16 @@ class IccCamera {
         std::make_shared<aslam::backend::TransformationDesignVariable>(
             this->T_extrinsic_, active, active);
     for (int i = 0; i < this->T_c_b_Dv_->numDesignVariables(); ++i) {
-      if constexpr (requires { problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i), baselinedv_group_id); }) {
-        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i), baselinedv_group_id);
+      if constexpr (requires {
+                      problem.addDesignVariable(
+                          this->T_c_b_Dv_->getDesignVariable(i),
+                          baselinedv_group_id);
+                    }) {
+        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i),
+                                  baselinedv_group_id);
       } else {
-        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i).get(), baselinedv_group_id);
+        problem.addDesignVariable(this->T_c_b_Dv_->getDesignVariable(i).get(),
+                                  baselinedv_group_id);
       }
     }
 
@@ -193,6 +208,14 @@ class IccCamera {
   std::shared_ptr<aslam::backend::Scalar> getTimeOffsetDv() {
     return cameraTimeToImuTimeDv_;
   }
+
+  std::vector<std::vector<std::shared_ptr<aslam::backend::ErrorTerm>>>&
+  getAllReprojectionErrors() {
+    return allReprojectionErrors_;
+  }
+
+  CameraParameters& getCamConfig() { return camConfig_; }
+  CalibrationTargetParameters& getTargetConfig() { return targetConfig_; }
 
  private:
   ImageDatasetReader dataset_;
@@ -254,7 +277,7 @@ class IccCameraChain {
   template <typename ProblemType>
     requires HasOptimizationProblemMethods<ProblemType>
   void addDesignVariables(ProblemType& problem, bool noTimeCalibration,
-                          bool noChainExtrinsics){
+                          bool noChainExtrinsics) {
     // add the design variables (T(R,t) & time)  for all induvidual cameras
     for (auto [camNr, cam] : std::ranges::views::enumerate(camList_)) {
       bool noExtrinsics;
@@ -353,7 +376,7 @@ class IccImu {
    */
   template <typename ProblemType>
     requires HasOptimizationProblemMethods<ProblemType>
-  void addDesignVariables(ProblemType& problem){
+  void addDesignVariables(ProblemType& problem) {
     gyroBiasDv_ =
         std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(
             *gyroBias_);
@@ -433,6 +456,14 @@ class IccImu {
   const std::vector<ImuMeasurement>& getImuData() const { return imuData_; }
   double getTimeOffset() const { return timeOffset_; }
   void setTimeOffset(double offset) { timeOffset_ = offset; }
+  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> getGyroErrors()
+      const {
+    return gyroErrors_;
+  }
+  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> getAccelErrors()
+      const {
+    return accelErrors_;
+  }
 
  protected:
   ImuDatasetReader dataset_;
@@ -595,7 +626,7 @@ class IccScaledMisalignedSizeEffectImu : public IccScaledMisalignedImu {
 
   template <typename ProblemType>
     requires HasOptimizationProblemMethods<ProblemType>
-  void addDesignVariables(ProblemType& problem){
+  void addDesignVariables(ProblemType& problem) {
     // Call base class
     IccScaledMisalignedImu::addDesignVariables(problem);
 

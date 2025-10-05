@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 3.25)
-
+cmake_minimum_required(VERSION 3.28)
 project(camera_imu_calibrate)
 
-set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_CXX_STANDARD 23)
+
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
@@ -11,10 +12,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(Matplot++ REQUIRED)
 
-add_subdirectory(thirdparty/matplotplusplus)
 add_subdirectory(thirdparty/argparse)
-add_subdirectory(thirdparty/rapidcsv)
 
 # Schweizer-Messer libraries
 add_subdirectory(thirdparty/Schweizer-Messer/sm_common)
@@ -86,9 +86,8 @@ add_executable(${PROJECT_NAME} ${SRC_FILES})
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     Eigen3::Eigen
     Ceres::ceres
-    matplot 
+    Matplot++::matplot
     argparse
-    rapidcsv
     aslam_backend::aslam_backend
     aslam_splines::aslam_splines
     incremental_calibration::incremental_calibration
