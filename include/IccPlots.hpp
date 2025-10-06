@@ -4,12 +4,39 @@
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
+#include <IccCalibrator.hpp>
+#include <map>
+#include <memory>
+#include <sm/plot/PlotCollection.hpp>
 #include <string>
 #include <vector>
 
 namespace kalibr {
 
-class IccCalibrator;
+// ============================================================================
+// Global Figure Registry (now using sm::plot::PlotCollection)
+// ============================================================================
+
+/**
+ * @brief Get the global figure registry
+ * @return Reference to the global PlotCollection instance
+ */
+inline sm::plot::PlotCollection& getFigureRegistry() {
+  return sm::plot::PlotCollection::global();
+}
+
+/**
+ * @brief Get or create a figure by number
+ * @param figNum Figure number
+ * @return Shared pointer to the figure
+ */
+inline std::shared_ptr<matplot::figure_type> getOrCreateFigure(int figNum) {
+  return getFigureRegistry().get_or_create_figure(figNum);
+}
+
+// ============================================================================
+// Plotting Functions
+// ============================================================================
 
 /**
  * @brief Plot IMU sample rates
@@ -94,21 +121,33 @@ void plotReprojectionScatter(const IccCalibrator& calibrator, int camId,
                              const std::string& title = "");
 
 /**
- * @brief Camera plot helper class
+ * @brief 3D visualization class for camera pose and calibration target
  */
 class CameraPlot {
  public:
-  CameraPlot(const IccCalibrator& calibrator, int camId);
+  /**
+   * @brief Constructor
+   * @param figureNumber Figure number to use
+   * @param targetPoints Nx3 matrix of target corner points in 3D
+   * @param camSize Size of camera coordinate axes for visualization
+   */
+  CameraPlot(int figureNumber, const Eigen::MatrixXd& targetPoints,
+             double camSize);
 
-  void plotReprojectionErrors(int figureNumber = 1, bool clearFigure = true,
-                              bool noShow = false);
-
-  void plotReprojectionScatter(int figureNumber = 1, bool clearFigure = true,
-                               bool noShow = false);
+  /**
+   * @brief Update camera pose visualization
+   * @param T 4x4 transformation matrix (homogeneous)
+   */
+  void plot3DCamera(const Eigen::Matrix4d& T);
 
  private:
-  const IccCalibrator& calibrator_;
-  int camId_;
+  void setupFigure();
+  void plot3Dgrid();
+
+  int figureNumber_;
+  Eigen::MatrixXd targetPoints_;
+  double camSize_;
+  bool initialized_;
 };
 
 }  // namespace kalibr
