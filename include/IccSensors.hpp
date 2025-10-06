@@ -26,6 +26,7 @@
 
 #include "aslam/backend/EuclideanPoint.hpp"
 #include "aslam/backend/RotationQuaternion.hpp"
+#include "kalibr_errorterms/EuclideanError.hpp"
 #include "sm/kinematics/Transformation.hpp"
 
 namespace kalibr {
@@ -216,6 +217,7 @@ class IccCamera {
 
   CameraParameters& getCamConfig() { return camConfig_; }
   CalibrationTargetParameters& getTargetConfig() { return targetConfig_; }
+  double getCornerUncertainty() const { return cornerUncertainty_; }
 
  private:
   ImageDatasetReader dataset_;
@@ -384,18 +386,8 @@ class IccImu {
         std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(
             *accelBias_);
 
-    addSplineDesignVariables(
-        problem,
-        *std::get<
-            std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-            gyroBiasDv_),
-        true, HELPER_GROUP_ID);
-    addSplineDesignVariables(
-        problem,
-        *std::get<
-            std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-            accelBiasDv_),
-        true, HELPER_GROUP_ID);
+    addSplineDesignVariables(problem, *gyroBiasDv_, true, HELPER_GROUP_ID);
+    addSplineDesignVariables(problem, *accelBiasDv_, true, HELPER_GROUP_ID);
     q_i_b_Dv_ =
         std::make_shared<aslam::backend::RotationQuaternion>(q_i_b_Prior_);
     if constexpr (requires {
@@ -456,13 +448,24 @@ class IccImu {
   const std::vector<ImuMeasurement>& getImuData() const { return imuData_; }
   double getTimeOffset() const { return timeOffset_; }
   void setTimeOffset(double offset) { timeOffset_ = offset; }
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> getGyroErrors()
-      const {
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
+  getGyroErrors() const {
     return gyroErrors_;
   }
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> getAccelErrors()
-      const {
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
+  getAccelErrors() const {
     return accelErrors_;
+  }
+
+  // Get bias design variables (for plotting)
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>
+  getAccelBiasDv() const {
+    return accelBiasDv_;
+  }
+
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>
+  getGyroBiasDv() const {
+    return gyroBiasDv_;
   }
 
  protected:
@@ -479,12 +482,8 @@ class IccImu {
   std::vector<ImuMeasurement> imuData_;
 
   // Design variables
-  std::variant<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>,
-               std::shared_ptr<aslam::backend::EuclideanPoint>>
-      gyroBiasDv_;
-  std::variant<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>,
-               std::shared_ptr<aslam::backend::EuclideanPoint>>
-      accelBiasDv_;
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> gyroBiasDv_;
+  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> accelBiasDv_;
   std::shared_ptr<aslam::backend::RotationQuaternion>
       q_i_b_Dv_;  // Rotation from IMU to body
   std::shared_ptr<aslam::backend::EuclideanPoint>
@@ -495,8 +494,8 @@ class IccImu {
   std::shared_ptr<bsplines::BSpline> accelBias_;
 
   // Error terms
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors_;
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors_;
 
  private:
   struct ShiftCost {

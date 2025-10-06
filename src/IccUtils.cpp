@@ -5,12 +5,112 @@
 #include <IccPlots.hpp>
 #include <IccSensors.hpp>
 #include <IccUtils.hpp>
+#include <filesystem>
 #include <format>
 #include <print>
 #include <ranges>
-#include "sm/plot/PlotCollection.hpp"
 
 namespace kalibr {
+
+void plotTrajectory(const IccCalibrator& calibrator, int figureNumber,
+                    bool clearFigure, const std::string& title) {
+  // Get pose spline from calibrator
+  auto poseDv = calibrator.getPoseDv();
+  if (!poseDv) {
+    std::println(stderr, "No pose design variable available");
+    return;
+  }
+
+  auto& bodyspline = poseDv->spline();
+
+  // Get IMU data to extract timestamps
+  auto& imuList = calibrator.getImuList();
+  if (imuList.empty()) {
+    std::println(stderr, "No IMU data available");
+    return;
+  }
+
+  auto& imu = imuList[0];  // Use first IMU
+
+  // Collect timestamps within spline time range
+  std::vector<double> timestamps;
+  for (const auto& im : imu->getImuData()) {
+    double t = im.stamp.toSec() + imu->getTimeOffset();
+    if (t >= bodyspline.t_min() && t <= bodyspline.t_max()) {
+      timestamps.push_back(t);
+    }
+  }
+
+  if (timestamps.empty()) {
+    std::println(stderr, "No valid timestamps for trajectory plotting");
+    return;
+  }
+
+  // Evaluate positions along the trajectory
+  std::vector<double> x_coords, y_coords, z_coords;
+  for (double t : timestamps) {
+    Eigen::Vector3d position = bodyspline.position(t);
+    x_coords.push_back(position.x());
+    y_coords.push_back(position.y());
+    z_coords.push_back(position.z());
+  }
+
+  // Get or create figure
+  auto fig = getOrCreateFigure(figureNumber);
+  auto ax = fig->current_axes();
+
+  if (clearFigure) {
+    ax->clear();
+  }
+
+  // Plot the 3D trajectory
+  auto line = matplot::plot3(x_coords, y_coords, z_coords);
+  line->color("b");
+  line->line_width(2.0);
+
+  // Add start and end markers
+  if (!x_coords.empty()) {
+    matplot::hold(matplot::on);
+
+    // Start point (green)
+    auto start = matplot::scatter3(std::vector<double>{x_coords.front()},
+                                   std::vector<double>{y_coords.front()},
+                                   std::vector<double>{z_coords.front()});
+    start->marker_color("g");
+    start->marker_size(10);
+    start->display_name("Start");
+
+    // End point (red)
+    auto end = matplot::scatter3(std::vector<double>{x_coords.back()},
+                                 std::vector<double>{y_coords.back()},
+                                 std::vector<double>{z_coords.back()});
+    end->marker_color("r");
+    end->marker_size(10);
+    end->display_name("End");
+
+    matplot::hold(matplot::off);
+  }
+
+  // Set labels and title
+  matplot::xlabel("x [m]");
+  matplot::ylabel("y [m]");
+  matplot::zlabel("z [m]");
+
+  if (!title.empty()) {
+    matplot::title(title);
+  } else {
+    matplot::title("Estimated IMU Trajectory");
+  }
+
+  // Enable grid
+  matplot::grid(matplot::on);
+
+  // Set equal aspect ratio for better visualization
+  matplot::axis(matplot::equal);
+
+  // Add legend
+  matplot::legend();
+}
 
 void printErrorStatistics(const IccCalibrator& calibrator, std::ostream& dest) {
   std::println(dest, "Normalized Residuals\n----------------------------");
@@ -234,86 +334,205 @@ void printBaselines(const IccCalibrator& calibrator) {
   }
 }
 
-// void generateReport(const IccCalibrator& calibrator,
-//                     const std::string& filename, bool showOnScreen) {
-//   std::vector<matplot::figure_handle> figs;
-//   auto plotter = sm::plot::PlotCollection("Calibration Report");
-//   int offset = 3010;
+void generateReport(const IccCalibrator& calibrator,
+                    const std::string& filename, bool showOnScreen) {
+  std::vector<std::shared_ptr<matplot::figure_type>> figs;
+  int offset = 3010;
 
-//   // Create text page with results
-//   std::stringstream sstream;
-//   printResultTxt(calibrator, sstream);
+  std::println("Generating calibration report...");
+  std::println("Target filename: {} (PDF export not yet implemented)",
+               filename);
 
-//   // text = [line for line in StringIO(sstream.getvalue())]
-//   auto text = std::vector<std::string>();
-//   for (std::string line; std::getline(sstream, line);) {
-//     text.push_back(line);
-//   }
+  // =========================================================================
+  // Create text pages with results
+  // =========================================================================
+  std::stringstream sstream;
+  printResultTxt(calibrator, sstream);
 
-//   size_t linesPerPage = 35;
+  // Split text into lines
+  std::vector<std::string> text;
+  for (std::string line; std::getline(sstream, line);) {
+    text.push_back(line + "\n");
+  }
 
-//   while (true) {
-//     auto fig = matplot::figure();
+  size_t linesPerPage = 35;
+  size_t textIdx = 0;
 
-//     double left = 0.05;
-//     double bottom = -0.05;
-//     double width = 1;
-//     double height = 1;
-//     double right = left + width;
-//     double top = bottom + height;
+  // Create text pages
+  while (textIdx < text.size()) {
+    auto fig = getOrCreateFigure(offset);
+    offset += 1;
 
-    
+    // Get current axes
+    auto ax = fig->current_axes();
+    ax->clear();
 
-//     size_t startLine = (figs.size() - 1) * linesPerPage;
-//     if (startLine >= text.size()) {
-//       break;
-//     }
-//     size_t endLine = std::min(startLine + linesPerPage, text.size());
-//     auto pageText = std::vector<std::string>(text.begin() + startLine,
-//                                             text.begin() + endLine);
+    // Turn off axis
+    matplot::axis(matplot::off);
 
-//     // matplot::text(pageText, 0.1, 0.9);
-//     matplot::axis(matplot::off);
-//     matplot::title("Calibration Report - Page " +
-//                    std::to_string(figs.size()));
-//     // matplot::draw();
-//     offset += 10;
-//   }
+    // Prepare text for this page
+    size_t endIdx = std::min(textIdx + linesPerPage, text.size());
+    std::string pageText;
+    for (size_t i = textIdx; i < endIdx; ++i) {
+      pageText += text[i];
+    }
 
-//   // Plot trajectory
-//   plotTrajectory(calibrator, 1003, false, "imu0: estimated poses");
+    // Add text to figure
+    // Note: Matplot++ text positioning is in data coordinates
+    matplot::text(0.05, 0.95, pageText);
+    matplot::title("Calibration Report - Page " +
+                   std::to_string(figs.size() + 1));
 
-//   // Plot IMU data
-//   auto& imuList = calibrator.getImuList();
-//   for (size_t iidx = 0; iidx < imuList.size(); ++iidx) {
-//     int fig_base = offset + static_cast<int>(iidx) * 10;
+    figs.push_back(fig);
+    textIdx = endIdx;
+  }
 
-//     plotIMURates(calibrator, static_cast<int>(iidx), fig_base + 0);
-//     plotGyroError(calibrator, static_cast<int>(iidx), fig_base + 1);
-//     plotGyroErrorPerAxis(calibrator, static_cast<int>(iidx), fig_base + 2);
-//     plotAccelError(calibrator, static_cast<int>(iidx), fig_base + 3);
-//     plotAccelErrorPerAxis(calibrator, static_cast<int>(iidx), fig_base + 4);
-//     plotAccelBias(calibrator, static_cast<int>(iidx), fig_base + 5);
-//     plotAngularVelocityBias(calibrator, static_cast<int>(iidx), fig_base +
-//     6); plotAngularVelocities(calibrator, static_cast<int>(iidx), fig_base +
-//     7); plotAccelerations(calibrator, static_cast<int>(iidx), fig_base + 8);
-//   }
+  // =========================================================================
+  // Plot trajectory
+  // =========================================================================
+  auto trajFig = getOrCreateFigure(1003);
+  plotTrajectory(calibrator, 1003, true, "imu0: estimated poses");
+  figs.push_back(trajFig);
 
-//   // Plot camera data
-//   auto cameraChain = calibrator.getCameraChain();
-//   if (cameraChain) {
-//     for (size_t cidx = 0; cidx < cameraChain->numCameras(); ++cidx) {
-//       int fig_num = offset + 100 + static_cast<int>(cidx);
-//       plotReprojectionScatter(calibrator, static_cast<int>(cidx), fig_num);
-//     }
-//   }
+  // =========================================================================
+  // Plot IMU data
+  // =========================================================================
+  auto& imuList = calibrator.getImuList();
+  for (size_t iidx = 0; iidx < imuList.size(); ++iidx) {
+    int idx = static_cast<int>(iidx);
 
-//   // Save to PDF
-//   std::cout << "Report saved to: " << filename << std::endl;
+    // IMU rates
+    auto fig1 = getOrCreateFigure(offset + idx);
+    plotIMURates(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig1);
+    offset += static_cast<int>(imuList.size());
 
-//   // matplotplusplus doesn't have direct PDF export
-//   // Would need to save individual figures and combine them
-// }
+    // Accelerations
+    auto fig2 = getOrCreateFigure(offset + idx);
+    plotAccelerations(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig2);
+    offset += static_cast<int>(imuList.size());
+
+    // Acceleration error per axis
+    auto fig3 = getOrCreateFigure(offset + idx);
+    plotAccelErrorPerAxis(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig3);
+    offset += static_cast<int>(imuList.size());
+
+    // Accelerometer bias
+    auto fig4 = getOrCreateFigure(offset + idx);
+    plotAccelBias(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig4);
+    offset += static_cast<int>(imuList.size());
+
+    // Angular velocities
+    auto fig5 = getOrCreateFigure(offset + idx);
+    plotAngularVelocities(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig5);
+    offset += static_cast<int>(imuList.size());
+
+    // Gyroscope error per axis
+    auto fig6 = getOrCreateFigure(offset + idx);
+    plotGyroErrorPerAxis(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig6);
+    offset += static_cast<int>(imuList.size());
+
+    // Gyroscope bias
+    auto fig7 = getOrCreateFigure(offset + idx);
+    plotAngularVelocityBias(calibrator, idx, offset + idx, true, true);
+    figs.push_back(fig7);
+    offset += static_cast<int>(imuList.size());
+  }
+
+  // =========================================================================
+  // Plot camera data
+  // =========================================================================
+  auto cameraChain = calibrator.getCameraChain();
+  if (cameraChain) {
+    auto& camList = cameraChain->getCamList();
+    for (size_t cidx = 0; cidx < camList.size(); ++cidx) {
+      int idx = static_cast<int>(cidx);
+      int fig_num = offset + idx;
+
+      auto fig = getOrCreateFigure(fig_num);
+      std::string title =
+          "cam" + std::to_string(cidx) + ": reprojection errors";
+      plotReprojectionScatter(calibrator, idx, fig_num, true, true, title);
+      figs.push_back(fig);
+
+      offset += static_cast<int>(camList.size());
+    }
+  }
+
+  // =========================================================================
+  // Save to PDF using gnuplot backend
+  // =========================================================================
+  std::println("Report contains {} figures", figs.size());
+
+  if (!filename.empty() && !figs.empty()) {
+    std::println("Saving report to PDF: {}", filename);
+
+    try {
+      // Save each figure as individual PDF using gnuplot's pdfcairo terminal
+      std::vector<std::string> pdfFiles;
+
+      for (size_t i = 0; i < figs.size(); ++i) {
+        std::string figPdf = std::format(".report_fig_{:04d}.pdf", i);
+        pdfFiles.push_back(figPdf);
+
+        // Configure the figure to use pdfcairo terminal and save
+        // Matplot++ will use gnuplot backend to generate PDF
+        figs[i]->save(figPdf);
+
+        std::println("  Generated page {}/{}", i + 1, figs.size());
+      }
+
+      // Combine PDFs using pdfunite (from poppler-utils)
+      std::string fileList;
+      for (const auto& file : pdfFiles) {
+        fileList += file + " ";
+      }
+
+      std::string command = std::format("pdfunite {} {}", fileList, filename);
+      std::println("Merging PDFs...");
+      int ret = std::system(command.c_str());
+
+      if (ret == 0) {
+        std::println("✓ Report saved successfully to: {}", filename);
+
+        // Clean up temporary files
+        for (const auto& file : pdfFiles) {
+          std::filesystem::remove(file);
+        }
+        std::println("  Cleaned up temporary files");
+      } else {
+        std::println(stderr,
+                     "✗ Error: Failed to merge PDFs. "
+                     "Make sure 'pdfunite' is installed:");
+        std::println(stderr,
+                     "  Ubuntu/Debian: sudo apt-get install poppler-utils");
+        std::println(stderr, "  macOS: brew install poppler");
+        std::println(stderr, "\nIndividual PDF files are available as:");
+        for (const auto& file : pdfFiles) {
+          std::println(stderr, "  {}", file);
+        }
+      }
+    } catch (const std::exception& e) {
+      std::println(stderr, "✗ Error saving PDF: {}", e.what());
+    }
+  } else if (filename.empty()) {
+    std::println("No filename specified, skipping PDF export");
+  }
+
+  std::println("\nReport generation completed");
+  std::println("Total figures created: {}", figs.size());
+
+  // Show figures on screen if requested
+  if (showOnScreen) {
+    std::println("\nDisplaying figures on screen...");
+    matplot::show();
+  }
+}
 
 void exportPoses(const IccCalibrator& calibrator, const std::string& filename) {
   std::ofstream file(filename);
@@ -379,22 +598,26 @@ void printResultTxt(const IccCalibrator& calibrator, std::ostream& stream) {
     stream << T.inverse().T() << std::endl;
 
     std::println(stream,
-                 "\ntimeshift cam{0} to imu0: [s] (t_imu = t_cam + shift)", camNr);
-    std::println(stream, "{}\n", calibrator.getCameraChain()->getResultTimeshift(camNr));
+                 "\ntimeshift cam{0} to imu0: [s] (t_imu = t_cam + shift)",
+                 camNr);
+    std::println(stream, "{}\n",
+                 calibrator.getCameraChain()->getResultTimeshift(camNr));
   }
 
   if (nCams > 1) {
     std::println(stream, "Baselines:");
     std::println(stream, "----------");
     for (size_t camNr = 0; camNr < nCams - 1; ++camNr) {
-      auto [T, baseline] = calibrator.getCameraChain()->getResultBaseline(camNr, camNr + 1);
+      auto [T, baseline] =
+          calibrator.getCameraChain()->getResultBaseline(camNr, camNr + 1);
       std::println(stream, "Baseline (cam{0} to cam{1}): ", camNr, camNr + 1);
       stream << T.T() << std::endl;
       std::println(stream, "baseline norm: {}[m]\n", baseline);
     }
   }
 
-  if (calibrator.getGravityDvType() == typeid(aslam::backend::EuclideanPoint).hash_code()) {
+  if (calibrator.getGravityDvType() ==
+      typeid(aslam::backend::EuclideanPoint).hash_code()) {
     auto g = std::dynamic_pointer_cast<aslam::backend::EuclideanPoint>(
                  calibrator.getGravityDv())
                  ->toEuclidean();
@@ -412,8 +635,8 @@ void printResultTxt(const IccCalibrator& calibrator, std::ostream& stream) {
   std::println(stream, "\n\nCalibration configuration");
   std::println(stream, "=========================\n");
 
-  for (auto [camNr, cam] :
-       std::ranges::views::enumerate(calibrator.getCameraChain()->getCamList())) {
+  for (auto [camNr, cam] : std::ranges::views::enumerate(
+           calibrator.getCameraChain()->getCamList())) {
     std::println(stream, "cam{0}", camNr);
     std::println(stream, "-----");
     cam->getCamConfig().printDetails(stream);

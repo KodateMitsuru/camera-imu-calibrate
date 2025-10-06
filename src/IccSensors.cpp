@@ -823,7 +823,7 @@ void IccImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -841,9 +841,7 @@ void IccImu::addAccelerometerErrorTerms(
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
       auto b_i =
-          std::get<
-              std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-              accelBiasDv_)
+              accelBiasDv_
               ->toEuclideanExpression(tk, 0);
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
@@ -878,7 +876,7 @@ void IccImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -894,9 +892,7 @@ void IccImu::addGyroscopeErrorTerms(
     if (tk > poseSplineDv.spline().t_min() &&
         tk < poseSplineDv.spline().t_max()) {
       auto b_i =
-          std::get<
-              std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-              gyroBiasDv_)
+              gyroBiasDv_
               ->toEuclideanExpression(tk, 0);
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto C_i_b = q_i_b_Dv_->toExpression();
@@ -941,16 +937,12 @@ void IccImu::addBiasMotionTerms(
       Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
   auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
       aslam::splines::EuclideanBSplineDesignVariable>>(
-      std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-          gyroBiasDv_)
-          .get(),
+      gyroBiasDv_.get(),
       Wgyro);
   problem.addErrorTerm(gyroBiasMotionErr);
   auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
       aslam::splines::EuclideanBSplineDesignVariable>>(
-      std::get<std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-          accelBiasDv_)
-          .get(),
+      accelBiasDv_.get(),
       Waccel);
   problem.addErrorTerm(accelBiasMotionErr);
 }
@@ -1113,19 +1105,15 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
     std::println("{}[s]", timeOffset_);
   }
 
-  gyroBiasDv_ =
+  auto gyroBiasDv =
       std::make_shared<aslam::backend::EuclideanPoint>(Eigen::Vector3d::Zero());
-  std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_)
-      ->setActive(true);
-  problem->addDesignVariable(
-      std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_));
+  gyroBiasDv->setActive(true);
+  problem->addDesignVariable(gyroBiasDv);
   for (auto& im : imuData_) {
     auto tk = im.stamp.toSec() + timeOffset_;
     if (tk > angularVelocity.t_min() && tk < angularVelocity.t_max()) {
       auto C_i_b = q_i_b_Dv->toExpression();
-      auto bias =
-          std::get<std::shared_ptr<aslam::backend::EuclideanPoint>>(gyroBiasDv_)
-              ->toExpression();
+      auto bias = gyroBiasDv->toExpression();
 
       auto omega_predicted =
           C_i_b * angularVelocityDv->toEuclideanExpression(tk, 0);
@@ -1237,7 +1225,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1255,9 +1243,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
       auto b_i =
-          std::get<
-              std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-              accelBiasDv_)
+              accelBiasDv_
               ->toEuclideanExpression(tk, 0);
       auto M = M_accel_Dv_->toExpression();
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
@@ -1293,7 +1279,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1311,9 +1297,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
       auto b_i =
-          std::get<
-              std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-              gyroBiasDv_)
+              gyroBiasDv_
               ->toEuclideanExpression(tk, 0);
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
@@ -1418,7 +1402,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1436,10 +1420,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
       auto b_i =
-          std::get<
-              std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>>(
-              accelBiasDv_)
-              ->toEuclideanExpression(tk, 0);
+          accelBiasDv_->toEuclideanExpression(tk, 0);
       auto M = M_accel_Dv_->toExpression();
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
