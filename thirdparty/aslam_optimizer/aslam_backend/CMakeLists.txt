@@ -6,7 +6,6 @@ project(aslam_backend
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system thread)
 find_package(Eigen3 REQUIRED)
 
 add_library(${PROJECT_NAME}
@@ -49,7 +48,6 @@ target_include_directories(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-  Boost::system
   Eigen3::Eigen
   sm_boost::sm_boost
   sm_eigen::sm_eigen

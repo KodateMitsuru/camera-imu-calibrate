@@ -11,7 +11,7 @@
 #include <aslam/backend/GaussNewtonTrustRegionPolicy.hpp>
 #include <aslam/backend/LevenbergMarquardtTrustRegionPolicy.hpp>
 #include <aslam/backend/TrustRegionPolicy.hpp>
-#include <boost/thread.hpp>
+#include <thread>
 #include <sm/assert_macros.hpp>
 #include <sm/timing/Timer.hpp>
 

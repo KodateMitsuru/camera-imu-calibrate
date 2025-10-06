@@ -8,7 +8,7 @@ project(aslam_cv_serialization
 
 find_package(aslam_cameras REQUIRED)
 find_package(aslam_time REQUIRED)
-find_package(Boost REQUIRED CONFIG COMPONENTS serialization system)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(OpenCV REQUIRED)
 find_package(sm_common REQUIRED)
 find_package(sm_boost REQUIRED)
@@ -38,7 +38,6 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   Boost::serialization
-  Boost::system
   aslam_cameras::aslam_cameras
   aslam_time::aslam_time
   sm_common::sm_common

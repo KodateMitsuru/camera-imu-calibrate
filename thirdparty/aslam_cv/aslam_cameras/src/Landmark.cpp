@@ -77,11 +77,9 @@ void Landmark::setLandmarkId(const LandmarkId& landmarkId) {
 
 // FrameId
 
-const boost::uint64_t& Landmark::frameId() const { return _frameId; }
+const uint64_t& Landmark::frameId() const { return _frameId; }
 
-void Landmark::setFrameId(const boost::uint64_t& frameId) {
-  _frameId = frameId;
-}
+void Landmark::setFrameId(const uint64_t& frameId) { _frameId = frameId; }
 
 Eigen::Vector3d Landmark::toEuclidean() const { return _ph.toEuclidean(); }
 Eigen::Vector4d Landmark::toHomogeneous() const { return _ph.toHomogeneous(); }
@@ -115,7 +113,7 @@ void Landmark::setRandom() {
   _frameId = rand();
 }
 
-void Landmark::fromKeypoint(boost::uint64_t frameId, const KeypointBase& kp) {
+void Landmark::fromKeypoint(uint64_t frameId, const KeypointBase& kp) {
   setFrameId(frameId);
   setDescriptorPtr(kp.descriptorPtr());
   setPoint(kp.landmark());
@@ -123,7 +121,7 @@ void Landmark::fromKeypoint(boost::uint64_t frameId, const KeypointBase& kp) {
 }
 
 void Landmark::fromTransformedKeypoint(
-    boost::uint64_t frameId, const KeypointBase& kp,
+    uint64_t frameId, const KeypointBase& kp,
     const sm::kinematics::Transformation& T_v_c) {
   setFrameId(frameId);
   setDescriptorPtr(kp.descriptorPtr());

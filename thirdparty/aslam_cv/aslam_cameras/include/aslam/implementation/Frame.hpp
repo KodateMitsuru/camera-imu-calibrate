@@ -30,7 +30,7 @@ void Frame<C>::setGeometryBase(
   SM_ASSERT_TRUE(Exception, cam.get() != NULL,
                  "Geometry pointer is the wrong type. Wanted: "
                      << typeid(C).name()
-                     << ", got: " << typeid(*geometry.get()).name());
+                     << ", got: " << typeid(*geometry).name());
   _geometry = cam;
 }
 

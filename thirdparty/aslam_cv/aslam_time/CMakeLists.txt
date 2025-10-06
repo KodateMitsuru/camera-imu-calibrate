@@ -6,8 +6,6 @@ project(aslam_time
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
-
 add_library(${PROJECT_NAME}
   src/time.cpp
   src/duration.cpp
@@ -26,7 +24,6 @@ endif()
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-  Boost::system
   ${OTHER_LIBS}
 )
 

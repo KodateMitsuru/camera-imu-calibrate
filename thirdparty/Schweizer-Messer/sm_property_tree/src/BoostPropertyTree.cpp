@@ -20,31 +20,31 @@ BoostPropertyTree::BoostPropertyTree(const boost::property_tree::ptree& ptree,
 
 BoostPropertyTree::~BoostPropertyTree() {}
 
-void BoostPropertyTree::loadXml(const boost::filesystem::path& fileName) {
+void BoostPropertyTree::loadXml(const std::filesystem::path& fileName) {
   dynamic_cast<BoostPropertyTreeImplementation*>(_imp.get())->loadXml(fileName);
 }
 
-void BoostPropertyTree::saveXml(const boost::filesystem::path& fileName) const {
+void BoostPropertyTree::saveXml(const std::filesystem::path& fileName) const {
   dynamic_cast<const BoostPropertyTreeImplementation*>(_imp.get())
       ->saveXml(fileName);
 }
 
-void BoostPropertyTree::loadIni(const boost::filesystem::path& fileName) {
+void BoostPropertyTree::loadIni(const std::filesystem::path& fileName) {
   dynamic_cast<BoostPropertyTreeImplementation*>(_imp.get())->loadIni(fileName);
 }
 
-void BoostPropertyTree::saveIni(const boost::filesystem::path& fileName) const {
+void BoostPropertyTree::saveIni(const std::filesystem::path& fileName) const {
   dynamic_cast<const BoostPropertyTreeImplementation*>(_imp.get())
       ->saveIni(fileName);
 }
 
-void BoostPropertyTree::loadInfo(const boost::filesystem::path& fileName) {
+void BoostPropertyTree::loadInfo(const std::filesystem::path& fileName) {
   dynamic_cast<BoostPropertyTreeImplementation*>(_imp.get())
       ->loadInfo(fileName);
 }
 
 void BoostPropertyTree::saveInfo(
-    const boost::filesystem::path& fileName) const {
+    const std::filesystem::path& fileName) const {
   dynamic_cast<const BoostPropertyTreeImplementation*>(_imp.get())
       ->saveInfo(fileName);
 }

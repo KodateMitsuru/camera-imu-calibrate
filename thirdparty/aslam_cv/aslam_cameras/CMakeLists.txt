@@ -6,7 +6,7 @@ project(aslam_cameras
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS filesystem serialization system)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 
@@ -43,9 +43,7 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-  Boost::filesystem
   Boost::serialization
-  Boost::system
   Eigen3::Eigen
   aslam_time::aslam_time
   sm_common::sm_common

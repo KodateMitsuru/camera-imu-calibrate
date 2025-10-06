@@ -5,7 +5,6 @@ project(aslam_splines
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
 
 add_library(${PROJECT_NAME}
   src/BSplinePoseDesignVariable.cpp
@@ -24,7 +23,6 @@ target_link_libraries(
   PUBLIC
   aslam_backend::aslam_backend
   aslam_backend_expressions::aslam_backend_expressions
-  Boost::system
   bsplines::bsplines
   sm_common::sm_common
   sm_kinematics::sm_kinematics

@@ -45,7 +45,7 @@
 #include <stdexcept>
 #include <limits>
 
-#include <boost/thread/mutex.hpp>
+#include <mutex>
 #include <boost/io/ios_state.hpp>
 
 /*********************************************************************

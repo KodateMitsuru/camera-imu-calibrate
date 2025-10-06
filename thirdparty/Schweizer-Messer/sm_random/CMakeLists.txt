@@ -5,8 +5,6 @@ project(sm_random
   DESCRIPTION "Generates random numbers and distributions"
   LANGUAGES CXX)
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
-
 add_library(${PROJECT_NAME}
   src/random.cpp
 )
@@ -19,7 +17,6 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-  Boost::system
 )
 
 target_compile_options(

@@ -4,8 +4,6 @@ project(aslam_cv_backend
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
-
 
 add_library(${PROJECT_NAME}
   src/GridCalibrationTargetDesignVariableContainer.cpp
@@ -24,7 +22,6 @@ target_link_libraries(
   aslam_backend_expressions::aslam_backend_expressions
   aslam_cameras::aslam_cameras
   aslam_time::aslam_time
-  Boost::system
   sm_boost::sm_boost
   sm_common::sm_common
   sm_eigen::sm_eigen

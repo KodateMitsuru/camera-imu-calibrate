@@ -8,7 +8,7 @@
 // #include <boost/function.hpp>
 #include <Eigen/Core>
 #include <aslam/Exceptions.hpp>
-#include <boost/thread.hpp>
+#include <thread>
 #include <sm/assert_macros.hpp>
 #include <sm/boost/null_deleter.hpp>
 #include <sm/timing/Timer.hpp>

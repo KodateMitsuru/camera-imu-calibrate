@@ -1,10 +1,11 @@
 #ifndef SM_TOKENS_HPP
 #define SM_TOKENS_HPP
 
-#include <boost/thread.hpp>
+#include <thread>
 #include <map>
 #include <memory>
 #include <sm/logging/LoggingEvent.hpp>
+#include <sstream>
 
 #ifdef WIN32
 #define COLOR_NONE ""
@@ -129,7 +130,7 @@ struct ThreadToken : public Token {
   virtual ~ThreadToken() {}
   virtual std::string getString(const ::sm::logging::LoggingEvent&) {
     std::stringstream ss;
-    ss << boost::this_thread::get_id();
+    ss << std::this_thread::get_id();
     return ss.str();
   }
 };

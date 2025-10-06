@@ -10,8 +10,6 @@
 
 #ifndef SM_SERIALIZATION_MACROS_HPP
 #define SM_SERIALIZATION_MACROS_HPP
-
-#include <boost/static_assert.hpp>
 #include <iostream>
 #include <memory>
 #include <ostream>
