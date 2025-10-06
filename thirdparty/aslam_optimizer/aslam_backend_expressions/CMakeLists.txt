@@ -4,7 +4,6 @@ project(aslam_backend_expressions
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
 find_package(Eigen3 REQUIRED)
 
 add_library(${PROJECT_NAME}
@@ -48,7 +47,6 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   aslam_backend::aslam_backend
-  Boost::system
   Eigen3::Eigen
   sm_boost::sm_boost
   sm_random::sm_random

@@ -5,7 +5,6 @@ project(incremental_calibration
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system thread)
 find_package(Eigen3 REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
@@ -51,8 +50,6 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   aslam_backend::aslam_backend
-  Boost::system
-  Boost::thread
   Eigen3::Eigen
   sm_eigen::sm_eigen
   ${SUITESPARSE_LIBRARIES}

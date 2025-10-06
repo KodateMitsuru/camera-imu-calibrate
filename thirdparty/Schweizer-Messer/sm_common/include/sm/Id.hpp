@@ -34,14 +34,14 @@
 #ifndef SM_ID_HPP
 #define SM_ID_HPP
 
-#include <boost/cstdint.hpp>
+#include <cstdint>
 #include <boost/functional/hash.hpp>
 #include <iostream>
 #include <functional>
 #include <boost/serialization/nvp.hpp>
 
 namespace sm {
-    typedef boost::uint64_t id_type;
+    typedef uint64_t id_type;
 
   ///
   /// \class Id
@@ -196,7 +196,7 @@ namespace sm {
         template<>                                                  \
         struct hash<FullyQualifiedIdTypeName>                       \
         {                                                           \
-            hash<boost::uint64_t> _hash;                            \
+            hash<uint64_t> _hash;                            \
             size_t operator()(const FullyQualifiedIdTypeName & id) const  \
             {                                                       \
                 return _hash(id.getId());                           \
@@ -207,7 +207,7 @@ namespace sm {
         template<>                                                      \
         struct hash<FullyQualifiedIdTypeName>                           \
         {                                                               \
-            hash<boost::uint64_t> _hash;                                \
+            hash<uint64_t> _hash;                                       \
             size_t operator()(const FullyQualifiedIdTypeName & id) const \
             {                                                           \
                 return _hash(id.getId());                               \

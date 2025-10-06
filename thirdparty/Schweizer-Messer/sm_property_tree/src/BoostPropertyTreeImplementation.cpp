@@ -92,33 +92,33 @@ namespace sm {
   }
 
 
-  void BoostPropertyTreeImplementation::loadXml(const boost::filesystem::path & fileName)
+  void BoostPropertyTreeImplementation::loadXml(const std::filesystem::path & fileName)
   {
     boost::property_tree::read_xml(fileName.string(), _ptree);
   }
 
-  void BoostPropertyTreeImplementation::saveXml(const boost::filesystem::path & fileName) const
+  void BoostPropertyTreeImplementation::saveXml(const std::filesystem::path & fileName) const
   {
     boost::property_tree::write_xml(fileName.string(), _ptree);
   }
- 
-  void BoostPropertyTreeImplementation::loadIni(const boost::filesystem::path & fileName)
+
+  void BoostPropertyTreeImplementation::loadIni(const std::filesystem::path & fileName)
   {
     boost::property_tree::read_ini(fileName.string(), _ptree);
   }
 
-  void BoostPropertyTreeImplementation::saveIni(const boost::filesystem::path & fileName) const
+  void BoostPropertyTreeImplementation::saveIni(const std::filesystem::path & fileName) const
   {
     boost::property_tree::write_ini(fileName.string(), _ptree);
   }
 
 
-  void BoostPropertyTreeImplementation::loadInfo(const boost::filesystem::path & fileName)
+  void BoostPropertyTreeImplementation::loadInfo(const std::filesystem::path & fileName)
   {
     boost::property_tree::read_info(fileName.string(), _ptree);
   }
 
-  void BoostPropertyTreeImplementation::saveInfo(const boost::filesystem::path & fileName) const
+  void BoostPropertyTreeImplementation::saveInfo(const std::filesystem::path & fileName) const
   {
     boost::property_tree::write_info(fileName.string(), _ptree);
   }

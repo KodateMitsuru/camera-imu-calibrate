@@ -5,8 +5,6 @@ project(aslam_cv_error_terms
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
-
 add_library(${PROJECT_NAME} INTERFACE)
 
 target_include_directories(
@@ -24,7 +22,6 @@ target_link_libraries(
   aslam_cv_backend::aslam_cv_backend
   aslam_splines::aslam_splines
   aslam_time::aslam_time
-  Boost::system
   sm_boost::sm_boost
   sm_eigen::sm_eigen
   sm_kinematics::sm_kinematics

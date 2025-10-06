@@ -740,7 +740,7 @@ bool PinholeProjection<DISTORTION_T>::initializeIntrinsics(const std::vector<Gri
     const GridCalibrationTargetBase & target = *obs.target();
 
     std::vector<Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d>> center(target.rows());
-    double radius[target.rows()];
+    std::vector<double> radius(target.rows());
     bool skipImage=false;
 
     for (size_t r=0; r<target.rows(); ++r) {

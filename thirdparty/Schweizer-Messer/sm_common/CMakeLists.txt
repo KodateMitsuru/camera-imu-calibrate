@@ -7,7 +7,6 @@ project(sm_common
 )
 
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
@@ -20,7 +19,6 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   INTERFACE
-  Boost::system
 )
 
 target_compile_options(

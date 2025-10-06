@@ -5,14 +5,14 @@
 #include <stdarg.h>
 
 #include <boost/interprocess/streams/vectorstream.hpp>
-#include <boost/thread.hpp>
-#include <boost/thread/mutex.hpp>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <sm/logging/Levels.hpp>
 #include <sm/logging/LogLocation.hpp>
 #include <sm/logging/Logger.hpp>
 #include <sm/logging/LoggingEvent.hpp>
+#include <thread>
 #include <vector>
 
 namespace sm {
@@ -87,17 +87,17 @@ class LoggingGlobals {
 
   bool _shutting_down;
 
-  boost::mutex _init_mutex;
+  std::mutex _init_mutex;
 
-  boost::mutex _locations_mutex;
+  std::mutex _locations_mutex;
   V_LogLocation _log_locations;
 
-  boost::recursive_mutex _named_stream_mutex;
+  std::recursive_mutex _named_stream_mutex;
   std::set<std::string> _namedStreamsEnabled;
 
   std::vector<char> _globalCharBuffer;
-  boost::mutex _print_mutex;
-  boost::thread::id _printing_thread_id;
+  std::mutex _print_mutex;
+  std::thread::id _printing_thread_id;
 };
 
 extern LoggingGlobals g_logging_globals;

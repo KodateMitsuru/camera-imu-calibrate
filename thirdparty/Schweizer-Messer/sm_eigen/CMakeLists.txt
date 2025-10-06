@@ -6,7 +6,7 @@ project(sm_eigen
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system serialization)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
 
 
@@ -24,7 +24,6 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   Boost::serialization
-  Boost::system
   Eigen3::Eigen
   sm_common
   sm_random

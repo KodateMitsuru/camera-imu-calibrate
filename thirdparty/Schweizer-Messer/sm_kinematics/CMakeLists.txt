@@ -7,7 +7,7 @@ project(sm_kinematics
 )
 
 
-find_package(Boost REQUIRED CONFIG COMPONENTS filesystem serialization system)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
 
 add_library(${PROJECT_NAME}
@@ -36,9 +36,7 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-    Boost::filesystem
     Boost::serialization
-    Boost::system
     Eigen3::Eigen
     sm_boost::sm_boost
     sm_common::sm_common

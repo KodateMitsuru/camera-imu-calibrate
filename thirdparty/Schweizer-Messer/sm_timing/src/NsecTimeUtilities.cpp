@@ -32,7 +32,7 @@ double nsecToSec( const NsecTime & time ) {
 
 /// \brief Convert the time (in seconds) to integer nanoseconds
 NsecTime secToNsec( const double & time ) {
-  return boost::int64_t( time * 1e9 );
+  return int64_t( time * 1e9 );
 }
 
 } // namespace timing

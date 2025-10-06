@@ -1,5 +1,5 @@
 #include <aslam/backend/CompressedColumnJacobianTransposeBuilder.hpp>
-#include <boost/thread.hpp>
+#include <thread>
 
 namespace aslam {
   namespace backend {
@@ -70,11 +70,13 @@ namespace aslam {
         // deal with the remainder.
         indices.back() = _jacobianPointers.size();
         // Build a thread pool and evaluate the jacobians.
-        boost::thread_group threads;
+        std::vector<std::thread> threads;
         for (unsigned i = 0; i < nThreads; ++i) {
-          threads.create_thread(boost::bind(ptr, this, i, indices[i], indices[i + 1], useMEstimator));
+          threads.emplace_back(std::bind(ptr, this, i, indices[i], indices[i + 1], useMEstimator));
         }
-        threads.join_all();
+        for (auto& thread : threads) {
+          thread.join();
+        }
       }
     }
 

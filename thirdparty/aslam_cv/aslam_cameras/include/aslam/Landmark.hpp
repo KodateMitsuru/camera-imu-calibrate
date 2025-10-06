@@ -39,8 +39,8 @@ class Landmark {
   /// \brief swap this keypoint with the rhs
   void swap(Landmark& rhs);
 
-  void fromKeypoint(boost::uint64_t frameId, const aslam::KeypointBase& kp);
-  void fromTransformedKeypoint(boost::uint64_t frameId, const KeypointBase& kp,
+  void fromKeypoint(uint64_t frameId, const aslam::KeypointBase& kp);
+  void fromTransformedKeypoint(uint64_t frameId, const KeypointBase& kp,
                                const sm::kinematics::Transformation& T_v_c);
 
   // Descriptor
@@ -85,10 +85,10 @@ class Landmark {
   // FrameId
 
   /// \brief get the frame ID that the landmark is stored wrt.
-  const boost::uint64_t& frameId() const;
+  const uint64_t& frameId() const;
 
   /// \brief set the frame id that the landmark is stored wrt.
-  void setFrameId(const boost::uint64_t& frameId);
+  void setFrameId(const uint64_t& frameId);
 
   // Serialization
 
@@ -134,7 +134,7 @@ class Landmark {
   LandmarkId _landmarkId;
 
   /// \brief the id of the frame that the landmark is stored wrt.
-  boost::uint64_t _frameId;
+  uint64_t _frameId;
 };
 
 }  // namespace aslam

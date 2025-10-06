@@ -2,7 +2,7 @@
 #include <sm/assert_macros.hpp>
 #include <sm/string_routines.hpp>
 
-#include <boost/filesystem/operations.hpp>
+#include <filesystem>
 #include <cstdlib>
 
 namespace sm {
@@ -10,9 +10,9 @@ namespace sm {
   /** 
    * @brief Helper to find a file with name filenameToFind in the directory specified by an environment variable envVarNameContainingSearchDir
    **/
-  boost::filesystem::path findFile(const std::string& filenameToFind, const std::string& envVarNameContainingSearchDir) {
+  std::filesystem::path findFile(const std::string& filenameToFind, const std::string& envVarNameContainingSearchDir) {
 
-    boost::filesystem::path fileFound;
+    std::filesystem::path fileFound;
     char* dir = std::getenv(envVarNameContainingSearchDir.c_str());
     SM_ASSERT_TRUE( std::runtime_error, dir, "Environment variable " << envVarNameContainingSearchDir << " could not be found");
 
@@ -20,10 +20,10 @@ namespace sm {
     searchDirectory = sm::ensureTrailingBackslash(searchDirectory);
 
     std::string fullPath = searchDirectory + filenameToFind;
-    SM_ASSERT_TRUE( std::runtime_error, boost::filesystem::exists(fullPath),
+    SM_ASSERT_TRUE( std::runtime_error, std::filesystem::exists(fullPath),
       "Environment variable " << envVarNameContainingSearchDir << " exists, but file " << filenameToFind << " could not be found in "  << searchDirectory);
 
-    fileFound = boost::filesystem::path(fullPath.c_str());
+    fileFound = std::filesystem::path(fullPath.c_str());
     return fileFound;
   }
 

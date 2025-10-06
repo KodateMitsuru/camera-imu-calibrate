@@ -4,7 +4,7 @@
 #include "PropertyTreeImplementation.hpp"
 #include "PropertyTree.hpp"
 #include <boost/property_tree/ptree.hpp>
-#include <boost/filesystem/path.hpp>
+#include <filesystem>
 #include <typeinfo>
 namespace sm {
   
@@ -19,14 +19,14 @@ namespace sm {
     BoostPropertyTreeImplementation(const boost::property_tree::ptree& ptree);
     virtual ~BoostPropertyTreeImplementation();
 
-    void loadXml(const boost::filesystem::path & fileName);
-    void saveXml(const boost::filesystem::path & fileName) const;
- 
-    void loadIni(const boost::filesystem::path & fileName);
-    void saveIni(const boost::filesystem::path & fileName) const;
+    void loadXml(const std::filesystem::path & fileName);
+    void saveXml(const std::filesystem::path & fileName) const;
 
-    void loadInfo(const boost::filesystem::path & fileName);
-    void saveInfo(const boost::filesystem::path & fileName) const;
+    void loadIni(const std::filesystem::path & fileName);
+    void saveIni(const std::filesystem::path & fileName) const;
+
+    void loadInfo(const std::filesystem::path & fileName);
+    void saveInfo(const std::filesystem::path & fileName) const;
 
     virtual double getDouble(const std::string & key) const;
     virtual double getDouble(const std::string & key, double defaultValue) const;

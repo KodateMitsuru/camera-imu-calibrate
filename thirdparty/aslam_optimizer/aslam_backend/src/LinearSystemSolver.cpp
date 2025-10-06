@@ -1,7 +1,7 @@
-#include <aslam/backend/LinearSystemSolver.hpp>
-#include <boost/thread.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
-#include <boost/ref.hpp>
+#include <aslam/backend/LinearSystemSolver.hpp>
+#include <functional>
+#include <thread>
 
 namespace aslam {
   namespace backend {
@@ -61,13 +61,15 @@ namespace aslam {
         // deal with the remainder.
         indices.back() = _errorTerms.size();
         // Build a thread pool and evaluate the jacobians.
-        boost::thread_group threads;
+        std::vector<std::thread> threads;
         std::vector<SafeJob> jobs(nThreads);
         for (size_t i = 0; i < nThreads; ++i) {
-          jobs[i] = SafeJob(boost::bind(job, i, indices[i], indices[i + 1], useMEstimator));
-          threads.create_thread(boost::ref(jobs[i]));
+          jobs[i] = SafeJob(std::bind(job, i, indices[i], indices[i + 1], useMEstimator));
+          threads.emplace_back(std::ref(jobs[i]));
         }
-        threads.join_all();
+        for (auto& thread : threads) {
+          thread.join();
+        }
         // Now go through and look for exceptions.
         for (size_t i = 0; i < nThreads; ++i) {
           if (jobs[i]._rval) {

@@ -10,7 +10,7 @@ project(aslam_cameras_april
   src/GridCalibrationTargetAprilgrid.cpp
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS serialization system)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 
@@ -25,7 +25,6 @@ target_link_libraries(${PROJECT_NAME}
   PUBLIC
   aslam_cameras::aslam_cameras
   Boost::serialization
-  Boost::system
   Eigen3::Eigen
   ethz_apriltag2::ethz_apriltag2
   sm_common::sm_common

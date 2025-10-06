@@ -6,8 +6,6 @@ project(sm_property_tree
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system filesystem)
-
 add_library(${PROJECT_NAME}
   src/PropertyTree.cpp
   src/BoostPropertyTreeImplementation.cpp
@@ -24,8 +22,6 @@ PUBLIC
 
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
-  Boost::system
-  Boost::filesystem
   sm_common
 )
 

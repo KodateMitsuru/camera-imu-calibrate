@@ -7,7 +7,6 @@ project(aslam_imgproc
 
 find_package(aslam_cameras REQUIRED)
 find_package(aslam_time REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
 find_package(sm_boost REQUIRED)
 find_package(sm_common REQUIRED)
 find_package(sm_eigen REQUIRED)
@@ -30,7 +29,6 @@ target_link_libraries(
   PUBLIC
   aslam_cameras::aslam_cameras
   aslam_time::aslam_time
-  Boost::system
   sm_boost::sm_boost
   sm_common::sm_common
   sm_eigen::sm_eigen

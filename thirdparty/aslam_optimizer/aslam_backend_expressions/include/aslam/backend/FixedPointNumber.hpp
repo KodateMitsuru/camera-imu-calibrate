@@ -13,30 +13,30 @@ struct BiggerType;
 
 template <>
 struct BiggerType<char> {
-  typedef std::int16_t type;
+  typedef int16_t type;
 };
 
 template <>
-struct BiggerType<std::int8_t> {
-  typedef std::int16_t type;
+struct BiggerType<int8_t> {
+  typedef int16_t type;
 };
 
 template <>
-struct BiggerType<std::int16_t> {
-  typedef std::int32_t type;
+struct BiggerType<int16_t> {
+  typedef int32_t type;
 };
 
 template <>
-struct BiggerType<std::int32_t> {
-  typedef std::int64_t type;
+struct BiggerType<int32_t> {
+  typedef int64_t type;
 };
 template <>
-struct BiggerType<std::int64_t> {
+struct BiggerType<int64_t> {
   typedef long double type;
 };
 
 #ifndef __APPLE__
-// On apple long long and std::int64_t are the same
+// On apple long long and int64_t are the same
 // and this causes a compiler error
 template <>
 struct BiggerType<long long> {
@@ -44,13 +44,13 @@ struct BiggerType<long long> {
 };
 #endif
 
-template <typename Integer_, std::uintmax_t Divider>
+template <typename Integer_, uintmax_t Divider>
 class FixedPointNumber{
  public:
   typedef Integer_ Integer;
   typedef typename BiggerType<Integer>::type NextBiggerType;
 
-  inline constexpr static std::uintmax_t getDivider(){ return Divider; }
+  inline constexpr static uintmax_t getDivider(){ return Divider; }
 
 
   inline FixedPointNumber() = default;
@@ -59,7 +59,7 @@ class FixedPointNumber{
   inline FixedPointNumber(Integer p) : _p(p){}
   inline explicit FixedPointNumber(double const & other) : _p(other * getDivider()) {}
 
-  template <typename OtherInteger_, std::uintmax_t OtherDivider_>
+  template <typename OtherInteger_, uintmax_t OtherDivider_>
   inline explicit FixedPointNumber(FixedPointNumber<OtherInteger_, OtherDivider_> const & other) { _p = other._p * getDivider() / other.getDivider(); }
 
   ~FixedPointNumber(){
@@ -121,7 +121,7 @@ class FixedPointNumber{
 
  private:
   Integer _p;
-  template<typename OtherInteger_, std::uintmax_t OtherDivider>
+  template<typename OtherInteger_, uintmax_t OtherDivider>
   friend class FixedPointNumber;
 };
 
@@ -130,7 +130,7 @@ struct is_fixed_point_number {
   constexpr static bool value = false;
 };
 
-template <typename Integer_, std::uintmax_t Divider>
+template <typename Integer_, uintmax_t Divider>
 struct is_fixed_point_number<FixedPointNumber<Integer_, Divider>> {
   constexpr static bool value = true;
 };
@@ -140,7 +140,7 @@ struct is_fixed_point_number<FixedPointNumber<Integer_, Divider>> {
 
 namespace std {
 
-template <typename Integer_, std::uintmax_t Divider>
+template <typename Integer_, uintmax_t Divider>
 struct numeric_limits<aslam::backend::FixedPointNumber<Integer_, Divider> > {
   constexpr static double epsilon() { return 1.0 / Divider; }
   constexpr static bool is_integer = Divider == 1;

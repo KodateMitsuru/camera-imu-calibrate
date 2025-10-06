@@ -26,7 +26,7 @@ void LoggingGlobals::shutdown() { _shutting_down = true; }
  * @param loc The location to add
  */
 void LoggingGlobals::registerLogLocation(LogLocation* loc) {
-  boost::mutex::scoped_lock lock(_locations_mutex);
+  std::scoped_lock lock(_locations_mutex);
   _log_locations.push_back(loc);
 }
 
@@ -39,7 +39,7 @@ void LoggingGlobals::checkLogLocationEnabledNoLock(LogLocation* loc) {
 void LoggingGlobals::initializeLogLocation(LogLocation* loc,
                                            const std::string& name,
                                            Level level) {
-  boost::mutex::scoped_lock lock(_locations_mutex);
+  std::scoped_lock lock(_locations_mutex);
 
   if (loc->_initialized) {
     return;
@@ -56,12 +56,12 @@ void LoggingGlobals::initializeLogLocation(LogLocation* loc,
 }
 
 void LoggingGlobals::setLogLocationLevel(LogLocation* loc, Level level) {
-  boost::mutex::scoped_lock lock(_locations_mutex);
+  std::scoped_lock lock(_locations_mutex);
   loc->_level = level;
 }
 
 void LoggingGlobals::checkLogLocationEnabled(LogLocation* loc) {
-  boost::mutex::scoped_lock lock(_locations_mutex);
+  std::scoped_lock lock(_locations_mutex);
   checkLogLocationEnabledNoLock(loc);
 }
 
@@ -75,7 +75,7 @@ void LoggingGlobals::checkLogLocationEnabled(LogLocation* loc) {
  * be correct wrt that logger.
  */
 void LoggingGlobals::notifyLoggerLevelsChanged() {
-  boost::mutex::scoped_lock lock(_locations_mutex);
+  std::scoped_lock lock(_locations_mutex);
 
   V_LogLocation::iterator it = _log_locations.begin();
   V_LogLocation::iterator end = _log_locations.end();
@@ -86,19 +86,19 @@ void LoggingGlobals::notifyLoggerLevelsChanged() {
 }
 
 bool LoggingGlobals::isNamedStreamEnabled(const std::string& name) {
-  boost::recursive_mutex::scoped_lock lock(_named_stream_mutex);
+  std::scoped_lock lock(_named_stream_mutex);
   std::set<std::string>::iterator it = _namedStreamsEnabled.find(name);
   return it != _namedStreamsEnabled.end();
 }
 
 void LoggingGlobals::enableNamedStream(const std::string& name) {
-  boost::recursive_mutex::scoped_lock lock(_named_stream_mutex);
+  std::scoped_lock lock(_named_stream_mutex);
   _namedStreamsEnabled.insert(name);
   notifyLoggerLevelsChanged();
 }
 
 void LoggingGlobals::disableNamedStream(const std::string& name) {
-  boost::recursive_mutex::scoped_lock lock(_named_stream_mutex);
+  std::scoped_lock lock(_named_stream_mutex);
   std::set<std::string>::iterator it = _namedStreamsEnabled.find(name);
   if (it != _namedStreamsEnabled.end()) {
     _namedStreamsEnabled.erase(it);
@@ -148,16 +148,16 @@ void LoggingGlobals::print(const char* streamName, Level level,
                            const char* fmt, ...) {
   if (_shutting_down) return;
 
-  if (_printing_thread_id == boost::this_thread::get_id()) {
+  if (_printing_thread_id == std::this_thread::get_id()) {
     fprintf(stderr,
             "Warning: recursive print statement has occurred.  Throwing out "
             "recursive print.\n");
     return;
   }
 
-  boost::mutex::scoped_lock lock(_print_mutex);
+  std::scoped_lock lock(_print_mutex);
 
-  _printing_thread_id = boost::this_thread::get_id();
+  _printing_thread_id = std::this_thread::get_id();
 
   va_list args;
   va_start(args, fmt);
@@ -174,7 +174,7 @@ void LoggingGlobals::print(const char* streamName, Level level,
     fprintf(stderr, "Caught exception while logging: [%s]\n", e.what());
   }
 
-  _printing_thread_id = boost::thread::id();
+  _printing_thread_id = std::thread::id();
 }
 
 void LoggingGlobals::print(const char* streamName, Level level,
@@ -182,7 +182,7 @@ void LoggingGlobals::print(const char* streamName, Level level,
                            const char* function) {
   if (_shutting_down) return;
 
-  if (_printing_thread_id == boost::this_thread::get_id()) {
+  if (_printing_thread_id == std::this_thread::get_id()) {
     fprintf(stderr,
             "Warning: recursive print statement has occurred.  Throwing out "
             "recursive print.\n");
@@ -194,9 +194,9 @@ void LoggingGlobals::print(const char* streamName, Level level,
   // make sure the string is null terminated.
   str.push_back('\0');
 
-  boost::mutex::scoped_lock lock(_print_mutex);
+  std::scoped_lock lock(_print_mutex);
 
-  _printing_thread_id = boost::this_thread::get_id();
+  _printing_thread_id = std::this_thread::get_id();
   try {
     _logger->log(LoggingEvent(streamName, level, file, line, function, &str[0],
                               _logger->currentTimeString()));
@@ -204,7 +204,7 @@ void LoggingGlobals::print(const char* streamName, Level level,
     fprintf(stderr, "Caught exception while logging: [%s]\n", e.what());
   }
 
-  _printing_thread_id = boost::thread::id();
+  _printing_thread_id = std::thread::id();
 }
 
 sm::logging::levels::Level LoggingGlobals::getLevel() {

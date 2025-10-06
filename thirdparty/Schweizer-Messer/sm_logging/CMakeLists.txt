@@ -7,7 +7,7 @@ project(sm_logging
 )
 
 
-find_package(Boost REQUIRED CONFIG COMPONENTS regex system thread)
+find_package(Boost REQUIRED CONFIG COMPONENTS regex)
 
 add_library(${PROJECT_NAME}
   src/Formatter.cpp
@@ -27,8 +27,6 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
   Boost::regex
-  Boost::system
-  Boost::thread
 )
 
 target_compile_options(

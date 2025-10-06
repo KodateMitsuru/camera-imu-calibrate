@@ -7,7 +7,7 @@
 #undef toupper
 #endif
 #include <boost/property_tree/ptree.hpp>
-#include <boost/filesystem/path.hpp>
+#include <filesystem>
 #include <typeinfo>
 #include <sm/BoostPropertyTreeSupport.hpp>
 
@@ -25,14 +25,14 @@ namespace sm {
     BoostPropertyTree(const boost::property_tree::ptree& ptree, const std::string & baseNamespace = "");
     virtual ~BoostPropertyTree();
 
-    void loadXml(const boost::filesystem::path & fileName);
-    void saveXml(const boost::filesystem::path & fileName) const;
- 
-    void loadIni(const boost::filesystem::path & fileName);
-    void saveIni(const boost::filesystem::path & fileName) const;
+    void loadXml(const std::filesystem::path & fileName);
+    void saveXml(const std::filesystem::path & fileName) const;
 
-    void loadInfo(const boost::filesystem::path & fileName);
-    void saveInfo(const boost::filesystem::path & fileName) const;
+    void loadIni(const std::filesystem::path & fileName);
+    void saveIni(const std::filesystem::path & fileName) const;
+
+    void loadInfo(const std::filesystem::path & fileName);
+    void saveInfo(const std::filesystem::path & fileName) const;
 
       void loadXmlStr(const std::string & fileName){loadXml(fileName);}
       void saveXmlStr(const std::string & fileName) const{saveXml(fileName);}

@@ -6,7 +6,7 @@ project(sm_boost
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS system serialization thread)
+find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 
 add_library(${PROJECT_NAME}
   src/portable_binary_iarchive.cpp
@@ -24,9 +24,7 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
-  Boost::system
   Boost::serialization
-  Boost::thread
   sm_common
 )
 
