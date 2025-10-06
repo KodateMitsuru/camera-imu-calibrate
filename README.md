@@ -90,6 +90,9 @@ tagSpacing: 0.3     # 相对于tagSize的比例
 ## References
 
 kalibr: https://github.com/ethz-asl/kalibr
+
 matplotplusplus: https://github.com/alandefreitas/matplotplusplus
+
 rapidcsv: https://github.com/d99kris/rapidcsv
+
 argparse: https://github.com/p-ranav/argparse
