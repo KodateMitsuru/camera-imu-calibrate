@@ -1,8 +1,10 @@
+#pragma once
 #include <fftw3.h>
 
 #include <Eigen/Dense>
 #include <vector>
 
+namespace math_utils {
 // Compute full (linear) cross-correlation a (*) b using FFTW.
 // Returns vector of length (a.size() + b.size() - 1), same semantics as
 // numpy.correlate(..., mode='full').
@@ -70,3 +72,5 @@ inline Eigen::VectorXd correlate_full(const Eigen::VectorXd& a,
 
   return result;
 }
+
+}  // namespace math_utils

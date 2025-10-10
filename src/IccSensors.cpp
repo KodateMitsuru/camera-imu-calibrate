@@ -943,15 +943,23 @@ IccImu::IccImu(const ::kalibr::ImuParameters& imuConfig,
       imuConfig_(IccImu::ImuParameters(imuConfig, imuNr)),
       isReferenceImu_(isReferenceImu),
       estimateTimeDelay_(estimateTimeDelay) {
-  auto accelerometerStatistics = imuConfig.getAccelerometerStatistics();
-  accelUncertaintyDiscrete_ = std::get<0>(accelerometerStatistics);
-  accelRandomWalk_ = std::get<1>(accelerometerStatistics);
-  accelUncertainty_ = std::get<2>(accelerometerStatistics);
-  auto gyroscopeStatistics = imuConfig.getGyroscopeStatistics();
-  gyroUncertaintyDiscrete_ = std::get<0>(gyroscopeStatistics);
-  gyroRandomWalk_ = std::get<1>(gyroscopeStatistics);
-  gyroUncertainty_ = std::get<2>(gyroscopeStatistics);
+  {
+    auto accelStats = imuConfig.getAccelerometerStatistics();
+    accelUncertaintyDiscrete_ = std::get<0>(accelStats);
+    accelRandomWalk_ = std::get<1>(accelStats);
+    accelUncertainty_ = std::get<2>(accelStats);
+  }
+  {
+    auto gyroStats = imuConfig.getGyroscopeStatistics();
+    gyroUncertaintyDiscrete_ = std::get<0>(gyroStats);
+    gyroRandomWalk_ = std::get<1>(gyroStats);
+    gyroUncertainty_ = std::get<2>(gyroStats);
+  }
+  GyroBiasPrior_ = Eigen::Vector3d::Zero();
+  GyroBiasPriorCount_ = 0;
   this->loadImuData();
+  q_i_b_Prior_ = Eigen::Vector4d(0, 0, 0, 1);
+  timeOffset_ = 0;
 }
 
 void IccImu::addAccelerometerErrorTerms(
@@ -1003,7 +1011,7 @@ void IccImu::addAccelerometerErrorTerms(
       "  Added {} of {} accelerometer error terms (skipped {} out-of-bounds "
       "measurements)",
       imuData_.size() - num_skipped, imuData_.size(), num_skipped);
-  accelErrors_.swap(accelErrors);
+  this->accelErrors_.swap(accelErrors);
 }
 
 void IccImu::addGyroscopeErrorTerms(
@@ -1031,9 +1039,9 @@ void IccImu::addGyroscopeErrorTerms(
 
     if (tk > poseSplineDv.spline().t_min() &&
         tk < poseSplineDv.spline().t_max()) {
-      auto b_i = gyroBiasDv_->toEuclideanExpression(tk, 0);
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
-      auto C_i_b = q_i_b_Dv_->toExpression();
+      auto b_i = this->gyroBiasDv_->toEuclideanExpression(tk, 0);
+      auto C_i_b = this->q_i_b_Dv_->toExpression();
       auto w = C_i_b * w_b;
       auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.omega, im.omegaInvR * weight, w + b_i);
@@ -1049,7 +1057,7 @@ void IccImu::addGyroscopeErrorTerms(
       "  Added {} of {} gyroscope error terms (skipped {} out-of-bounds "
       "measurements)",
       imuData_.size() - num_skipped, imuData_.size(), num_skipped);
-  gyroErrors_.swap(gyroErrors);
+  this->gyroErrors_.swap(gyroErrors);
 }
 
 void IccImu::initBiasSplines(const bsplines::BSplinePose& poseSpline,
@@ -1075,11 +1083,11 @@ void IccImu::addBiasMotionTerms(
       Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
   auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
       aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_.get(),
-                                                       Wgyro);
+                                                       Wgyro,1);
   problem.addErrorTerm(gyroBiasMotionErr);
   auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
       aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_.get(),
-                                                       Waccel);
+                                                       Waccel,1);
   problem.addErrorTerm(accelBiasMotionErr);
 }
 
@@ -1188,7 +1196,7 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
         "No overlapping IMU data for orientation prior estimation");
   }
 
-  auto corr = correlate_full(referenceAbsoluteOmega(0.0),
+  auto corr = math_utils::correlate_full(referenceAbsoluteOmega(0.0),
                             absoluteOmega(0.0));
   Eigen::Index discrete_shift;
   corr.maxCoeff(&discrete_shift);
