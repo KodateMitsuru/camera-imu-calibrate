@@ -860,7 +860,7 @@ IccImu::ImuParameters::ImuParameters(const ::kalibr::ImuParameters& imuConfig,
                                      int imuNr)
     : ::kalibr::ImuParameters("", true) {
   data_ = imuConfig.getYamlDict();
-  data_["model"] = "calibrated";
+  data_["model"] = std::string("calibrated");
   imuNr_ = imuNr;
 }
 
@@ -1274,7 +1274,7 @@ IccScaledMisalignedImu::ImuParameters::ImuParameters(
     const ::kalibr::ImuParameters& imuConfig, int imuNr)
     : IccImu::ImuParameters(imuConfig, imuNr) {
   data_ = imuConfig.getYamlDict();
-  data_["model"] = "scale-misalignment";
+  data_["model"] = std::string("scale-misalignment");
 }
 
 void IccScaledMisalignedImu::ImuParameters::printDetails(
@@ -1458,7 +1458,7 @@ IccScaledMisalignedSizeEffectImu::ImuParameters::ImuParameters(
     const ::kalibr::ImuParameters& imuConfig, int imuNr)
     : IccScaledMisalignedImu::ImuParameters(imuConfig, imuNr) {
   data_ = imuConfig.getYamlDict();
-  data_["model"] = "scale-misalignment-size-effect";
+  data_["model"] = std::string("scale-misalignment-size-effect");
 }
 
 void IccScaledMisalignedSizeEffectImu::ImuParameters::printDetails(
