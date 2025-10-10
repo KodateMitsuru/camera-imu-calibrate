@@ -58,7 +58,7 @@ def extract_imu_to_csv(bag_path, imu_topic, out_csv):
                     # sensor_msgs/msg/Imu
                     if conn.msgtype == 'sensor_msgs/msg/Imu':
                         # 时间戳（秒）
-                        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+                        t = int(msg.header.stamp.sec * 1e9) + int(msg.header.stamp.nanosec)
                         omega = [
                             msg.angular_velocity.x,
                             msg.angular_velocity.y,
