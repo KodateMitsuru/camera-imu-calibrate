@@ -4,41 +4,23 @@
 namespace aslam {
 namespace backend {
 
-TransformationDesignVariable::TransformationDesignVariable()
-    : initial_T_(sm::kinematics::Transformation()) {
-  // Initialize with identity transformation
-  Eigen::Vector4d q_identity(0.0, 0.0, 0.0, 1.0);  // w, x, y, z
-  Eigen::Vector3d t_zero = Eigen::Vector3d::Zero();
-
-  q_ = std::make_shared<RotationQuaternion>(q_identity);
-  q_->setActive(true);
-
-  t_ = std::make_shared<EuclideanPoint>(t_zero);
-  t_->setActive(true);
-
-  // Create the transformation expression
-  expression_ =
-      TransformationExpression(q_->toExpression(), t_->toExpression());
-}
-
 TransformationDesignVariable::TransformationDesignVariable(
     const sm::kinematics::Transformation& transformation, bool rotationActive,
     bool translationActive)
     : initial_T_(transformation) {
   // Extract quaternion (aslam uses [x, y, z, w] order)
-  Eigen::Vector4d q_wxyz = transformation.q();
-  Eigen::Vector4d q_xyzw;
-  q_xyzw << q_wxyz[1], q_wxyz[2], q_wxyz[3],
-      q_wxyz[0];  // Convert w,x,y,z to x,y,z,w
+  Eigen::Vector4d q = transformation.q();
 
-  q_ = std::make_shared<RotationQuaternion>(q_xyzw);
+  q_ = std::make_shared<RotationQuaternion>(q);
   q_->setActive(rotationActive);
 
   // Extract translation
   Eigen::Vector3d t = transformation.t();
   t_ = std::make_shared<EuclideanPoint>(t);
   t_->setActive(translationActive);
-
+  
+  basic_dv_ = std::make_shared<TransformationBasic>(
+      q_->toExpression(), t_->toExpression());
   // Create the transformation expression from rotation and translation
   // expressions
   expression_ =
@@ -65,13 +47,6 @@ std::shared_ptr<DesignVariable> TransformationDesignVariable::getDesignVariable(
   }
 }
 
-void TransformationDesignVariable::setRotationActive(bool active) {
-  q_->setActive(active);
-}
-
-void TransformationDesignVariable::setTranslationActive(bool active) {
-  t_->setActive(active);
-}
 
 }  // namespace backend
 }  // namespace aslam

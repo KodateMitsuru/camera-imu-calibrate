@@ -12,9 +12,9 @@ class EuclideanError : public aslam::backend::ErrorTermFs<3> {
 
   EuclideanError() : _predictedMeasurement(NULL) {}
 
-  EuclideanError(const Eigen::Vector3d & measurement,
-                 const Eigen::Matrix3d invR,
-                 const aslam::backend::EuclideanExpression & predicted_measurement);
+  EuclideanError(
+      const Eigen::Vector3d& measurement, const Eigen::Matrix3d invR,
+      const aslam::backend::EuclideanExpression& predicted_measurement);
   virtual ~EuclideanError() {}
 
   /// \brief return predicted measurement
@@ -24,17 +24,18 @@ class EuclideanError : public aslam::backend::ErrorTermFs<3> {
   Eigen::Vector3d getMeasurement();
 
  protected:
-  /// \brief evaluate the error term and return the weighted squared error e^T invR e
+  /// \brief evaluate the error term and return the weighted squared error e^T
+  /// invR e
   virtual double evaluateErrorImplementation();
 
   /// \brief evaluate the jacobian
   virtual void evaluateJacobiansImplementation(
-      aslam::backend::JacobianContainer & _jacobians) const;
+      aslam::backend::JacobianContainer& _jacobians) const;
 
   Eigen::Vector3d _measurement;
   aslam::backend::EuclideanExpression _predictedMeasurement;
 };
 
-} //namespace kalibr_errorterms
+}  // namespace kalibr_errorterms
 
 #endif /* KALIBR_IMU_CAM_EUCLIDEAN_ERROR_HPP */

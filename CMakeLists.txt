@@ -15,6 +15,8 @@ find_package(Ceres REQUIRED)
 find_package(Matplot++ REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_search_module(FFTW REQUIRED fftw3 IMPORTED_TARGET)
 
 # Disable tests in third-party libraries
 set(BUILD_TESTING OFF CACHE BOOL "Disable third-party tests" FORCE)
@@ -93,6 +95,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Eigen3::Eigen
     Ceres::ceres
     Matplot++::matplot
+    PkgConfig::FFTW
     yaml-cpp
     argparse
     aslam_backend::aslam_backend
@@ -111,6 +114,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE 
     include
+    PkgConfig::FFTW
     ${OpenCV_INCLUDE_DIRS}
 )
 
