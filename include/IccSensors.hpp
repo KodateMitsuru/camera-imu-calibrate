@@ -479,10 +479,10 @@ class IccImu {
   bool estimateTimeDelay_;
   double accelUncertaintyDiscrete_, accelRandomWalk_, accelUncertainty_;
   double gyroUncertaintyDiscrete_, gyroRandomWalk_, gyroUncertainty_;
-  Eigen::Vector3d GyroBiasPrior_ = Eigen::Vector3d::Zero();
-  int GyroBiasPriorCount_ = 0;
-  Eigen::Vector4d q_i_b_Prior_ = Eigen::Vector4d::Identity();
-  double timeOffset_ = 0.0;
+  Eigen::Vector3d GyroBiasPrior_;
+  int GyroBiasPriorCount_;
+  Eigen::Vector4d q_i_b_Prior_;
+  double timeOffset_;
   std::vector<ImuMeasurement> imuData_;
 
   // Design variables
