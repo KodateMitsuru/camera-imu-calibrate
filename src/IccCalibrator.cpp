@@ -17,8 +17,11 @@
 #include <thread>
 
 #include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
+#include "aslam/backend/DenseQrLinearSystemSolver.hpp"
 #include "aslam/backend/DesignVariable.hpp"
 #include "aslam/backend/LevenbergMarquardtTrustRegionPolicy.hpp"
+#include "aslam/backend/SparseCholeskyLinearSystemSolver.hpp"
+#include "aslam/backend/SparseQrLinearSystemSolver.hpp"
 #include "aslam/calibration/core/IncrementalEstimator.h"
 #include "bsplines/BSplinePose.hpp"
 
@@ -121,18 +124,18 @@ void IccCalibrator::buildProblem(
   std::println("\tMax iterations: {}", maxIterations);
   std::println("\tTime offset padding: {}", timeOffsetPadding);
 
-  noTimeCalibration_ = noTimeCalibration;
+  this->noTimeCalibration_ = noTimeCalibration;
   if (!noTimeCalibration) {
-    for (auto cam : cameraChain_->getCamList()) {
-      cam->findTimeshiftCameraImuPrior(*imuList_[0], verbose);
+    for (auto cam : this->cameraChain_->getCamList()) {
+      cam->findTimeshiftCameraImuPrior(*this->imuList_[0], verbose);
     }
   }
 
-  cameraChain_->findOrientationPriorCameraChainToImu(*imuList_[0]);
-  Eigen::Vector3d estimatedGravity = cameraChain_->getEstimatedGravity();
+  this->cameraChain_->findOrientationPriorCameraChainToImu(*this->imuList_[0]);
+  Eigen::Vector3d estimatedGravity = this->cameraChain_->getEstimatedGravity();
 
   bsplines::BSplinePose poseSpline =
-      cameraChain_->initializePoseSplineFromCameraChain(
+      this->cameraChain_->initializePoseSplineFromCameraChain(
           splineOrder, poseKnotsPerSecond, timeOffsetPadding);
 
   for (auto& imu : imuList_) {

@@ -26,7 +26,9 @@
 
 #include "aslam/backend/EuclideanPoint.hpp"
 #include "aslam/backend/RotationQuaternion.hpp"
+#include "kalibr_errorterms/AccelerometerError.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
+#include "kalibr_errorterms/GyroscopeError.hpp"
 #include "sm/kinematics/Transformation.hpp"
 
 namespace kalibr {
@@ -97,7 +99,7 @@ class IccCamera {
   IccCamera(const CameraParameters& camConfig,
             const CalibrationTargetParameters& targetConfig,
             const ImageDatasetReader& dataset, double reprojectionSigma = 1.0,
-            bool showCorners = true, bool showReproj = true,
+            bool showCorners = false, bool showReproj = false,
             bool showOneStep = false);
 
   /**
@@ -111,7 +113,7 @@ class IccCamera {
   /**
    * @brief Find orientation prior from camera to IMU
    */
-  void findOrientationPriorCameraToImu(const class IccImu& imu);
+  void findOrientationPriorCameraToImu(class IccImu& imu);
 
   /**
    * @brief Get estimated gravity vector
@@ -121,7 +123,7 @@ class IccCamera {
   /**
    * @brief Find time shift between camera and IMU using cross-correlation
    */
-  double findTimeshiftCameraImuPrior(const class IccImu& imu,
+  double findTimeshiftCameraImuPrior(class IccImu& imu,
                                      bool verbose = false);
 
   /**
@@ -262,7 +264,7 @@ class IccCameraChain {
 
   void findCameraTimespan();
 
-  void findOrientationPriorCameraChainToImu(const IccImu& imu);
+  void findOrientationPriorCameraChainToImu(IccImu& imu);
 
   Eigen::Vector3d getEstimatedGravity();
 
@@ -448,11 +450,11 @@ class IccImu {
   const std::vector<ImuMeasurement>& getImuData() const { return imuData_; }
   double getTimeOffset() const { return timeOffset_; }
   void setTimeOffset(double offset) { timeOffset_ = offset; }
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
+  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>>
   getGyroErrors() const {
     return gyroErrors_;
   }
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
+  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>>
   getAccelErrors() const {
     return accelErrors_;
   }
@@ -466,6 +468,12 @@ class IccImu {
   std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>
   getGyroBiasDv() const {
     return gyroBiasDv_;
+  }
+  int& getGyroBiasPriorCount() {
+    return GyroBiasPriorCount_;
+  }
+  Eigen::Vector3d& getGyroBiasPrior() {
+    return GyroBiasPrior_;
   }
 
  protected:
@@ -494,8 +502,8 @@ class IccImu {
   std::shared_ptr<bsplines::BSpline> accelBias_;
 
   // Error terms
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors_;
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors_;
 
  private:
   struct ShiftCost {

@@ -38,9 +38,12 @@
 #include <string>
 #include <unordered_map>
 
+#include "aslam/FrameBase.hpp"
+#include "aslam/Keypoint.hpp"
 #include "aslam/Time.hpp"
 #include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
 #include "aslam/backend/MEstimatorPolicies.hpp"
+#include "aslam/cameras.hpp"
 #include "bsplines/BSpline.hpp"
 #include "kalibr_common/ConfigReader.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
@@ -77,10 +80,7 @@ IccCamera::IccCamera(const CameraParameters& camConfig,
   bool multithreading = !(showCorners || showReproj || showOneStep);
   targetObservations_ =
       extractCornersFromDataset(dataset_, *detector_,
-                                multithreading,  // multithreading
-                                0,               // auto-detect num processes
-                                true,            // clear images
-                                false            // no transformation
+                                multithreading  // multithreading
       );
 
   // An estimate of the gravity in the world coordinate frame
@@ -153,7 +153,7 @@ void IccCamera::setupCalibrationTarget(
   std::println("Calibration target setup completed");
 }
 
-void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
+void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
   std::println("\nEstimating imu-camera rotation prior");
 
   // Build the optimization problem
@@ -177,15 +177,15 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
       6, 100, 0.0);  // splineOrder, knotsPerSecond, no padding
 
   // Add error terms for each IMU measurement
-  const auto& imuData = imu.getImuData();
+  auto& imuData = imu.getImuData();
   aslam::backend::EuclideanExpression bias(Eigen::Vector3d::Zero());
-  for (const auto& im : imuData) {
+  for (auto& im : imuData) {
     double tk = im.stamp.toSec();
 
     if (tk > poseSpline.t_min() && tk < poseSpline.t_max()) {
       // DV expressions
       auto R_i_c = q_i_c_Dv->toExpression();
-      auto bias = gyroBiasDv->toExpression();
+      bias = gyroBiasDv->toExpression();
 
       // Get the vision predicted omega and measured omega (IMU)
       Eigen::Vector3d omega_spline = poseSpline.angularVelocityBodyFrame(tk);
@@ -209,7 +209,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
   // Define the optimization options
   aslam::backend::Optimizer2Options options;
   options.verbose = false;
-  options.nThreads = 2;
+  options.nThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
   options.convergenceDeltaX = 1e-4;
   options.convergenceDeltaJ = 1.0;
   options.maxIterations = 50;
@@ -232,7 +232,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
 
   // Estimate gravity as the mean specific force
   std::vector<Eigen::Vector3d> a_w_samples;
-  for (const auto& im : imuData) {
+  for (auto& im : imuData) {
     double tk = im.stamp.toSec();
     if (tk > poseSpline.t_min() && tk < poseSpline.t_max()) {
       Eigen::Matrix3d C_w_b = poseSpline.orientation(tk);
@@ -256,10 +256,11 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
 
   // Get gyro bias
   Eigen::Vector3d b_gyro = bias.toEuclidean();
-
-  // Update IMU gyro bias prior (using recursive average if multiple cameras)
-  // Note: This modifies the IMU object - in practice you may need a different
-  // approach
+  auto& gyroBiasPriorCount = imu.getGyroBiasPriorCount();
+  gyroBiasPriorCount++;
+  imu.getGyroBiasPrior() =
+      (gyroBiasPriorCount - 1.0) / gyroBiasPriorCount * imu.getGyroBiasPrior() +
+      1.0 / gyroBiasPriorCount * b_gyro;
 
   std::println("  Orientation prior camera-imu found as: (T_i_c)");
   std::cout << R_i_c << std::endl;  // Eigen matrices need stream operator
@@ -270,7 +271,7 @@ void IccCamera::findOrientationPriorCameraToImu(const IccImu& imu) {
 
 Eigen::Vector3d IccCamera::getEstimatedGravity() const { return gravity_w_; }
 
-double IccCamera::findTimeshiftCameraImuPrior(const IccImu& imu, bool verbose) {
+double IccCamera::findTimeshiftCameraImuPrior(IccImu& imu, bool verbose) {
   std::println("Estimating time shift camera to imu:");
 
   // Fit a spline to the camera observations
@@ -482,8 +483,8 @@ void IccCamera::addCameraErrorTerms(
   auto iProgress = sm::progress::Progress2(targetObservations_.size());
   iProgress.sample();
   // Clear previous reprojection errors
-  allReprojectionErrors_.clear();
-  int totalErrorTerms = 0;
+  std::vector<std::vector<std::shared_ptr<aslam::backend::ErrorTerm>>>
+      allReprojectionErrors;
 
   // Get reprojection error type from camera
   // In C++, we use the camera geometry directly
@@ -492,8 +493,8 @@ void IccCamera::addCameraErrorTerms(
   for (const auto& obs : targetObservations_) {
     // Build a transformation expression for the time
     // frameTime = cameraTimeToImuTimeDv + obs.time() + timeshiftCamToImuPrior
-    auto frameTime = cameraTimeToImuTimeDv_->toExpression() +
-                     obs.time().toSec() + timeshiftCamToImuPrior_;
+    auto frameTime = this->cameraTimeToImuTimeDv_->toExpression() +
+                     obs.time().toSec() + this->timeshiftCamToImuPrior_;
     double frameTimeScalar = frameTime.toScalar();
 
     // As we are applying an initial time shift outside the optimization,
@@ -511,7 +512,6 @@ void IccCamera::addCameraErrorTerms(
     // Calibration target coords to camera N coords
     // T_b_w: from world to imu coords
     // T_cN_b: from imu to camera N coords
-    // T_c_w = T_cN_b * T_b_w
     auto T_c_w = T_cN_b * T_b_w;
 
     // Get the image and target points corresponding to the frame
@@ -525,10 +525,64 @@ void IccCamera::addCameraErrorTerms(
         Eigen::Matrix2d::Identity() * cornerUncertainty_ * cornerUncertainty_;
     Eigen::Matrix2d invR = R.inverse();
 
-    // Setup an aslam frame (handles the distortion)
-    // Note: In C++ aslam, frame handling is done through the camera geometry
-    // We create error terms directly
+    std::shared_ptr<aslam::FrameBase> frame;
+    if (camera_->getFrameType() ==
+        typeid(aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>)
+            .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(
+                   aslam::Frame<aslam::cameras::
+                                    EquidistantDistortedPinholeCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<aslam::Frame<
+          aslam::cameras::EquidistantDistortedPinholeCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(aslam::Frame<
+                          aslam::cameras::FovDistortedPinholeCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(aslam::Frame<aslam::cameras::PinholeCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::PinholeCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(aslam::Frame<aslam::cameras::OmniCameraGeometry>)
+                   .hash_code()) {
+      frame =
+          std::make_shared<aslam::Frame<aslam::cameras::OmniCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(
+                   aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>>();
+    } else if (camera_->getFrameType() ==
+               typeid(aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>)
+                   .hash_code()) {
+      frame = std::make_shared<
+          aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>>();
+    } else {
+      throw std::runtime_error("Unsupported camera frame type");
+    }
+    frame->setGeometryBase(camera_->getGeometry());
 
+    for (size_t pidx = 0; pidx < imageCornerPoints.size(); ++pidx) {
+      std::shared_ptr<aslam::KeypointBase> k =
+          std::make_shared<aslam::Keypoint<2>>();
+      k->vsSetMeasurement(Eigen::Vector2d(imageCornerPoints[pidx].x,
+                                          imageCornerPoints[pidx].y));
+      k->vsSetInverseMeasurementCovariance(invR);
+      frame->addBaseKeypoint(k.get());
+    }
     // Store reprojection errors for this observation
     std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> reprojectionErrors;
 
@@ -547,7 +601,93 @@ void IccCamera::addCameraErrorTerms(
 
       // Create reprojection error using camera's factory method
       // 这里使用了之前存储的具体类型工厂 - 无需反射！
-      auto rerr = camera_->createReprojectionError(y, invR, p);
+      std::shared_ptr<aslam::backend::ErrorTerm> rerr;
+      if (camera_->getReprojectionErrorType() ==
+          typeid(
+              aslam::backend::SimpleReprojectionError<
+                  aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>>)
+              .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>>>(
+            reinterpret_cast<
+                aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
+                            aslam::cameras::
+                                EquidistantDistortedPinholeCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<
+            aslam::backend::SimpleReprojectionError<aslam::Frame<
+                aslam::cameras::EquidistantDistortedPinholeCameraGeometry>>>(
+            reinterpret_cast<aslam::Frame<
+                aslam::cameras::EquidistantDistortedPinholeCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
+                            aslam::cameras::FovDistortedPinholeCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>>>(
+            reinterpret_cast<aslam::Frame<
+                aslam::cameras::FovDistortedPinholeCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(
+                     aslam::backend::SimpleReprojectionError<
+                         aslam::Frame<aslam::cameras::PinholeCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::PinholeCameraGeometry>>>(
+            reinterpret_cast<
+                aslam::Frame<aslam::cameras::PinholeCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
+                            aslam::cameras::DistortedOmniCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>>>(
+            reinterpret_cast<
+                aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<
+                            aslam::Frame<aslam::cameras::OmniCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::OmniCameraGeometry>>>(
+            reinterpret_cast<aslam::Frame<aslam::cameras::OmniCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
+                            aslam::cameras::ExtendedUnifiedCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>>>(
+            reinterpret_cast<
+                aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else if (camera_->getReprojectionErrorType() ==
+                 typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
+                            aslam::cameras::DoubleSphereCameraGeometry>>)
+                     .hash_code()) {
+        rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
+            aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>>>(
+            reinterpret_cast<
+                aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>*>(
+                frame.get()),
+            pidx, p);
+      } else {
+        throw std::runtime_error("Unsupported camera frame type");
+      }
 
       // Add Blake-Zisserman M-estimator if requested
       if (blakeZissermanDf > 0.0) {
@@ -558,15 +698,16 @@ void IccCamera::addCameraErrorTerms(
 
       problem.addErrorTerm(rerr);
       reprojectionErrors.push_back(rerr);
-      totalErrorTerms++;
     }
 
-    allReprojectionErrors_.push_back(reprojectionErrors);
+    allReprojectionErrors.push_back(reprojectionErrors);
 
     iProgress.sample();
   }
 
-  std::println("  Added {} camera error terms", totalErrorTerms);
+  std::println("\r  Added {0} camera error terms                      ",
+               targetObservations_.size());
+  this->allReprojectionErrors_.swap(allReprojectionErrors);
 }
 
 // ============================================================================
@@ -643,7 +784,7 @@ void IccCameraChain::findCameraTimespan() {
   timeEnd_ = tEnd;
 }
 
-void IccCameraChain::findOrientationPriorCameraChainToImu(const IccImu& imu) {
+void IccCameraChain::findOrientationPriorCameraChainToImu(IccImu& imu) {
   camList_[0]->findOrientationPriorCameraToImu(imu);
 }
 
@@ -745,8 +886,8 @@ std::string kalibr::IccImu::ImuParameters::formatIndented(
 }
 
 void IccImu::ImuParameters::printDetails(std::ostream& out) const {
-  std::println(out, "  Model: {}",
-               std::any_cast<std::string>(data_.at("model")));
+  // std::println(out, "  Model: {}",
+  //              std::any_cast<std::string>(data_.at("model")));
   ::kalibr::ImuParameters::printDetails(out);
   std::println(out, "  T_ib (imu0 to imu{})", imuNr_);
   std::println(out, "{}",
@@ -823,7 +964,7 @@ void IccImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -840,16 +981,14 @@ void IccImu::addAccelerometerErrorTerms(
         tk < poseSplineDv.spline().t_max()) {
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
-      auto b_i =
-              accelBiasDv_
-              ->toEuclideanExpression(tk, 0);
+      auto b_i = accelBiasDv_->toEuclideanExpression(tk, 0);
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
       auto C_i_b = q_i_b_Dv_->toExpression();
       auto r_b = r_b_Dv_->toExpression();
       auto a = C_i_b * (C_b_w * (a_w - g_w) + w_dot_b.cross(r_b) +
                         w_b.cross(w_b.cross(r_b)));
-      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);
@@ -876,7 +1015,7 @@ void IccImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -891,13 +1030,11 @@ void IccImu::addGyroscopeErrorTerms(
 
     if (tk > poseSplineDv.spline().t_min() &&
         tk < poseSplineDv.spline().t_max()) {
-      auto b_i =
-              gyroBiasDv_
-              ->toEuclideanExpression(tk, 0);
+      auto b_i = gyroBiasDv_->toEuclideanExpression(tk, 0);
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto C_i_b = q_i_b_Dv_->toExpression();
       auto w = C_i_b * w_b;
-      auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+      auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
           im.omega, im.omegaInvR * weight, w + b_i);
       gerr->setMEstimatorPolicy(mest);
       gyroErrors.push_back(gerr);
@@ -936,14 +1073,12 @@ void IccImu::addBiasMotionTerms(
   Eigen::Matrix3d Waccel =
       Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
   auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(
-      gyroBiasDv_.get(),
-      Wgyro);
+      aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_.get(),
+                                                       Wgyro);
   problem.addErrorTerm(gyroBiasMotionErr);
   auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(
-      accelBiasDv_.get(),
-      Waccel);
+      aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_.get(),
+                                                       Waccel);
   problem.addErrorTerm(accelBiasMotionErr);
 }
 
@@ -1225,7 +1360,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1242,9 +1377,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
         tk < poseSplineDv.spline().t_max()) {
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
-      auto b_i =
-              accelBiasDv_
-              ->toEuclideanExpression(tk, 0);
+      auto b_i = accelBiasDv_->toEuclideanExpression(tk, 0);
       auto M = M_accel_Dv_->toExpression();
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
@@ -1252,7 +1385,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
       auto r_b = r_b_Dv_->toExpression();
       auto a = M * (C_i_b * (C_b_w * (a_w - g_w) + w_dot_b.cross(r_b) +
                              w_b.cross(w_b.cross(r_b))));
-      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);
@@ -1279,7 +1412,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1296,9 +1429,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
         tk < poseSplineDv.spline().t_max()) {
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
-      auto b_i =
-              gyroBiasDv_
-              ->toEuclideanExpression(tk, 0);
+      auto b_i = gyroBiasDv_->toEuclideanExpression(tk, 0);
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
       auto r_b = r_b_Dv_->toExpression();
@@ -1310,7 +1441,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
       auto M = M_gyro_Dv_->toExpression();
       auto Ma = M_accel_gyro_Dv_->toExpression();
       auto w = M * (C_gyro_b * w_b) + Ma * (C_gyro_b * a_b);
-      auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+      auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
           im.omega, im.omegaInvR * weight, w + b_i);
       gerr->setMEstimatorPolicy(mest);
       gyroErrors.push_back(gerr);
@@ -1402,7 +1533,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1419,8 +1550,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
         tk < poseSplineDv.spline().t_max()) {
       auto C_b_w = poseSplineDv.orientation(tk).inverse();
       auto a_w = poseSplineDv.linearAcceleration(tk);
-      auto b_i =
-          accelBiasDv_->toEuclideanExpression(tk, 0);
+      auto b_i = accelBiasDv_->toEuclideanExpression(tk, 0);
       auto M = M_accel_Dv_->toExpression();
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto w_dot_b = poseSplineDv.angularAccelerationBodyFrame(tk);
@@ -1440,7 +1570,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
            Ix * (C_i_b * (w_dot_b.cross(rx_b) + w_b.cross(w_b.cross(rx_b)))) +
            Iy * (C_i_b * (w_dot_b.cross(ry_b) + w_b.cross(w_b.cross(ry_b)))) +
            Iz * (C_i_b * (w_dot_b.cross(rz_b) + w_b.cross(w_b.cross(rz_b)))));
-      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
+      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);
