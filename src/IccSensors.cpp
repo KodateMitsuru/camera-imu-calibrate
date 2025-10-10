@@ -47,6 +47,7 @@
 #include "bsplines/BSpline.hpp"
 #include "kalibr_common/ConfigReader.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
+#include "math_utils.hpp"
 #include "sm/kinematics/Transformation.hpp"
 #include "sm/kinematics/quaternion_algebra.hpp"
 #include "sm/progress/Progress.hpp"
@@ -964,7 +965,7 @@ void IccImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -988,7 +989,7 @@ void IccImu::addAccelerometerErrorTerms(
       auto r_b = r_b_Dv_->toExpression();
       auto a = C_i_b * (C_b_w * (a_w - g_w) + w_dot_b.cross(r_b) +
                         w_b.cross(w_b.cross(r_b)));
-      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
+      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);
@@ -1015,7 +1016,7 @@ void IccImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1034,7 +1035,7 @@ void IccImu::addGyroscopeErrorTerms(
       auto w_b = poseSplineDv.angularVelocityBodyFrame(tk);
       auto C_i_b = q_i_b_Dv_->toExpression();
       auto w = C_i_b * w_b;
-      auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
+      auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.omega, im.omegaInvR * weight, w + b_i);
       gerr->setMEstimatorPolicy(mest);
       gyroErrors.push_back(gerr);
@@ -1096,7 +1097,7 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
   std::println("\nEstimating imu-imu rotation initial guess...");
   auto problem = std::make_shared<aslam::backend::OptimizationProblem>();
   auto q_i_b_Dv = std::make_shared<aslam::backend::RotationQuaternion>(
-      Eigen::Matrix3d::Identity().eval());
+      Eigen::Vector4d(0, 0, 0, 1));
   q_i_b_Dv->setActive(true);
   problem->addDesignVariable(q_i_b_Dv);
 
@@ -1187,28 +1188,11 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
         "No overlapping IMU data for orientation prior estimation");
   }
 
-  auto corr = [](const Eigen::VectorXd& a, const Eigen::VectorXd& v) {
-    const int n = a.size();
-    const int m = v.size();
-    const int outLen = n + m - 1;
-
-    Eigen::VectorXd out = Eigen::VectorXd::Zero(outLen);
-
-    // 滑动点积
-    for (int lag = 0; lag < outLen; ++lag) {
-      int i0 = std::max(0, lag - m + 1);  // a 的起始下标
-      int j0 = std::max(0, m - lag - 1);  // v 的起始下标
-      int span = std::min(lag + 1, n) - i0;
-
-      for (int k = 0; k < span; ++k) {
-        out[lag] += a[i0 + k] * v[j0 + k];
-      }
-    }
-    return out;
-  }(referenceAbsoluteOmega(0.0), absoluteOmega(0.0));
-
+  auto corr = correlate_full(referenceAbsoluteOmega(0.0),
+                            absoluteOmega(0.0));
   Eigen::Index discrete_shift;
   corr.maxCoeff(&discrete_shift);
+  discrete_shift -= (absoluteOmega(0.0).size() - 1);
 
   std::vector<double> times;
   for (auto im : imuData_) {
@@ -1360,7 +1344,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1385,7 +1369,7 @@ void IccScaledMisalignedImu::addAccelerometerErrorTerms(
       auto r_b = r_b_Dv_->toExpression();
       auto a = M * (C_i_b * (C_b_w * (a_w - g_w) + w_dot_b.cross(r_b) +
                              w_b.cross(w_b.cross(r_b))));
-      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
+      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);
@@ -1412,7 +1396,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (gyroNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1441,7 +1425,7 @@ void IccScaledMisalignedImu::addGyroscopeErrorTerms(
       auto M = M_gyro_Dv_->toExpression();
       auto Ma = M_accel_gyro_Dv_->toExpression();
       auto w = M * (C_gyro_b * w_b) + Ma * (C_gyro_b * a_b);
-      auto gerr = std::make_shared<kalibr_errorterms::GyroscopeError>(
+      auto gerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.omega, im.omegaInvR * weight, w + b_i);
       gerr->setMEstimatorPolicy(mest);
       gyroErrors.push_back(gerr);
@@ -1533,7 +1517,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
   iProgress.sample();
 
   double weight = 1.0 / (accelNoiseScale);
-  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors;
   int num_skipped = 0;
 
   std::shared_ptr<aslam::backend::MEstimator> mest;
@@ -1570,7 +1554,7 @@ void IccScaledMisalignedSizeEffectImu::addAccelerometerErrorTerms(
            Ix * (C_i_b * (w_dot_b.cross(rx_b) + w_b.cross(w_b.cross(rx_b)))) +
            Iy * (C_i_b * (w_dot_b.cross(ry_b) + w_b.cross(w_b.cross(ry_b)))) +
            Iz * (C_i_b * (w_dot_b.cross(rz_b) + w_b.cross(w_b.cross(rz_b)))));
-      auto aerr = std::make_shared<kalibr_errorterms::AccelerometerError>(
+      auto aerr = std::make_shared<kalibr_errorterms::EuclideanError>(
           im.alpha, im.alphaInvR * weight, a + b_i);
       aerr->setMEstimatorPolicy(mest);
       accelErrors.push_back(aerr);

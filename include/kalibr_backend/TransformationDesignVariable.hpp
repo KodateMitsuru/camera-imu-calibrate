@@ -1,6 +1,7 @@
 #ifndef KALIBR_BACKEND_TRANSFORMATION_DESIGN_VARIABLE_HPP
 #define KALIBR_BACKEND_TRANSFORMATION_DESIGN_VARIABLE_HPP
 
+#include "aslam/backend/TransformationBasic.hpp"
 #include <Eigen/Core>
 #include <aslam/backend/EuclideanPoint.hpp>
 #include <aslam/backend/RotationQuaternion.hpp>
@@ -20,11 +21,6 @@ namespace backend {
 class TransformationDesignVariable {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  /**
-   * @brief Constructor with identity transformation
-   */
-  TransformationDesignVariable();
 
   /**
    * @brief Constructor with initial transformation
@@ -60,30 +56,15 @@ class TransformationDesignVariable {
    */
   std::shared_ptr<DesignVariable> getDesignVariable(int i);
 
-  /**
-   * @brief Get rotation design variable
-   */
-  std::shared_ptr<RotationQuaternion> getRotation() { return q_; }
-
-  /**
-   * @brief Get translation design variable
-   */
-  std::shared_ptr<EuclideanPoint> getTranslation() { return t_; }
-
-  /**
-   * @brief Set active status for rotation
-   */
-  void setRotationActive(bool active);
-
-  /**
-   * @brief Set active status for translation
-   */
-  void setTranslationActive(bool active);
+  std::shared_ptr<DesignVariable> designVariable(int i) {
+    return getDesignVariable(i);
+  }
 
  private:
   sm::kinematics::Transformation initial_T_;
   std::shared_ptr<RotationQuaternion> q_;  // Rotation quaternion
   std::shared_ptr<EuclideanPoint> t_;      // Translation vector
+  std::shared_ptr<TransformationBasic> basic_dv_;  // Combined expression
   TransformationExpression expression_;    // Combined expression
 };
 

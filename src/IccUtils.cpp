@@ -192,7 +192,7 @@ void printErrorStatistics(const IccCalibrator& calibrator, std::ostream& dest) {
       std::vector<double> e2;
       for (const auto& reprojectionErrors : cam->getAllReprojectionErrors()) {
         for (const auto& rerr : reprojectionErrors) {
-          e2.push_back(std::sqrt(rerr->vsError().norm()));
+          e2.push_back(rerr->vsError().norm());
         }
       }
       double mean = std::accumulate(e2.begin(), e2.end(), 0.0) / e2.size();

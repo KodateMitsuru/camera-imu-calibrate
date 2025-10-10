@@ -31,6 +31,7 @@
 #include "kalibr_errorterms/GyroscopeError.hpp"
 #include "sm/kinematics/Transformation.hpp"
 
+
 namespace kalibr {
 
 constexpr int CALIBRATION_GROUP_ID = 0;
@@ -123,8 +124,7 @@ class IccCamera {
   /**
    * @brief Find time shift between camera and IMU using cross-correlation
    */
-  double findTimeshiftCameraImuPrior(class IccImu& imu,
-                                     bool verbose = false);
+  double findTimeshiftCameraImuPrior(class IccImu& imu, bool verbose = false);
 
   /**
    * @brief Initialize pose spline from camera poses
@@ -450,11 +450,11 @@ class IccImu {
   const std::vector<ImuMeasurement>& getImuData() const { return imuData_; }
   double getTimeOffset() const { return timeOffset_; }
   void setTimeOffset(double offset) { timeOffset_ = offset; }
-  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>>
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
   getGyroErrors() const {
     return gyroErrors_;
   }
-  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>>
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>>
   getAccelErrors() const {
     return accelErrors_;
   }
@@ -469,12 +469,8 @@ class IccImu {
   getGyroBiasDv() const {
     return gyroBiasDv_;
   }
-  int& getGyroBiasPriorCount() {
-    return GyroBiasPriorCount_;
-  }
-  Eigen::Vector3d& getGyroBiasPrior() {
-    return GyroBiasPrior_;
-  }
+  int& getGyroBiasPriorCount() { return GyroBiasPriorCount_; }
+  Eigen::Vector3d& getGyroBiasPrior() { return GyroBiasPrior_; }
 
  protected:
   ImuDatasetReader dataset_;
@@ -502,8 +498,8 @@ class IccImu {
   std::shared_ptr<bsplines::BSpline> accelBias_;
 
   // Error terms
-  std::vector<std::shared_ptr<kalibr_errorterms::AccelerometerError>> accelErrors_;
-  std::vector<std::shared_ptr<kalibr_errorterms::GyroscopeError>> gyroErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> accelErrors_;
+  std::vector<std::shared_ptr<kalibr_errorterms::EuclideanError>> gyroErrors_;
 
  private:
   struct ShiftCost {
