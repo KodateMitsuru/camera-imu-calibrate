@@ -115,8 +115,140 @@ ParametersBase::ParametersBase(const std::string& yamlFile,
   }
 }
 
+// Helper: check whether a scalar string represents an integer (only digits
+// with optional sign)
+static bool isIntegerString(const std::string& s) {
+  if (s.empty()) return false;
+  size_t i = 0;
+  if (s[0] == '+' || s[0] == '-') {
+    if (s.size() == 1) return false;
+    i = 1;
+  }
+  for (; i < s.size(); ++i) {
+    if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
+  }
+  return true;
+}
+
+// Helper: check whether a scalar string looks like a floating point number.
+// This is a lightweight check (presence of '.' or 'e'/'E') and is not a full
+// validator; used to choose parsing strategy.
+static bool looksLikeFloat(const std::string& s) {
+  for (char c : s) {
+    if (c == '.' || c == 'e' || c == 'E') return true;
+  }
+  return false;
+}
+
+// Parse a scalar node into std::any (int, double, bool or string). This
+// function avoids relying on YAML::Node::as<T>() to control flow and instead
+// uses deterministic string inspection plus minimal std::stod/stoll guarded by
+// try/catch for safe conversion.
+static std::any parseScalarNode(const YAML::Node& node) {
+  const std::string s = node.Scalar();
+  // boolean
+  std::string lower = s;
+  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  if (lower == "true") return true;
+  if (lower == "false") return false;
+
+  // integer
+  if (isIntegerString(s)) {
+    try {
+      long long v = std::stoll(s);
+      return static_cast<int>(v);
+    } catch (...) {
+      // fall through to try double/string
+    }
+  }
+
+  // float-ish
+  if (looksLikeFloat(s)) {
+    try {
+      double d = std::stod(s);
+      return d;
+    } catch (...) {
+      // fall through to string
+    }
+  }
+
+  // fallback to string
+  return s;
+}
+
+// Parse a sequence node into either vector<int>, vector<double> or
+// vector<string> depending on element contents.
+static std::any parseSequenceNode(const YAML::Node& node) {
+  std::vector<int> vi;
+  std::vector<double> vd;
+  std::vector<std::string> vs;
+
+  bool allInt = true;
+  bool allDouble = true;
+
+  for (const auto& el : node) {
+    if (!el.IsScalar()) {
+      // Non-scalar element: fall back to vector<string> of dumped nodes
+      vs.push_back(YAML::Dump(el));
+      allInt = false;
+      allDouble = false;
+      continue;
+    }
+    std::string s = el.Scalar();
+    if (isIntegerString(s)) {
+      try {
+        vi.push_back(static_cast<int>(std::stoll(s)));
+      } catch (...) {
+        allInt = false;
+      }
+      try {
+        vd.push_back(std::stod(s));
+      } catch (...) {
+        allDouble = false;
+      }
+      vs.push_back(s);
+    } else if (looksLikeFloat(s)) {
+      // treat as double candidate
+      try {
+        double d = std::stod(s);
+        vd.push_back(d);
+      } catch (...) {
+        allDouble = false;
+      }
+      allInt = false;
+      vs.push_back(s);
+    } else {
+      // treat as string
+      vs.push_back(s);
+      allInt = false;
+      allDouble = false;
+    }
+  }
+
+  if (allInt && !vi.empty()) return vi;
+  if (allDouble && !vd.empty()) return vd;
+  return vs;
+}
+
+// Recursively parse any YAML node into std::any using the above helpers.
+static std::any parseNodeToAny(const YAML::Node& node) {
+  if (!node) return std::any();
+  if (node.IsScalar()) return parseScalarNode(node);
+  if (node.IsSequence()) return parseSequenceNode(node);
+  if (node.IsMap()) {
+    ParametersBase::DictType nested;
+    for (auto it = node.begin(); it != node.end(); ++it) {
+      std::string key = it->first.as<std::string>();
+      nested[key] = parseNodeToAny(it->second);
+    }
+    return nested;
+  }
+  // fallback: return string dump
+  return YAML::Dump(node);
+}
+
 ParametersBase::DictType ParametersBase::readYaml() {
-  DictType data;
+  ParametersBase::DictType data;
   try {
     YAML::Node root = YAML::LoadFile(yamlFile_);
     if (!root) {
@@ -126,98 +258,14 @@ ParametersBase::DictType ParametersBase::readYaml() {
     for (auto it = root.begin(); it != root.end(); ++it) {
       const std::string key = it->first.as<std::string>();
       const YAML::Node& value = it->second;
-
-      // 简单类型自动转换
-      if (value.IsScalar()) {
-        // 尝试 int, double, bool, string
-        try {
-          data[key] = value.as<int>();
-          continue;
-        } catch (...) {
-        }
-        try {
-          data[key] = value.as<double>();
-          continue;
-        } catch (...) {
-        }
-        try {
-          data[key] = value.as<bool>();
-          continue;
-        } catch (...) {
-        }
-        try {
-          data[key] = value.as<std::string>();
-          continue;
-        } catch (...) {
-        }
-      } else if (value.IsSequence()) {
-        // 尝试 vector<int>, vector<double>, vector<string>
-        try {
-          data[key] = value.as<std::vector<int>>();
-          continue;
-        } catch (...) {
-        }
-        try {
-          data[key] = value.as<std::vector<double>>();
-          continue;
-        } catch (...) {
-        }
-        try {
-          data[key] = value.as<std::vector<std::string>>();
-          continue;
-        } catch (...) {
-        }
-      } else if (value.IsMap()) {
-        // 递归解析嵌套 map
-        DictType nested;
-        for (auto it2 = value.begin(); it2 != value.end(); ++it2) {
-          const std::string nestedKey = it2->first.as<std::string>();
-          const YAML::Node& nestedValue = it2->second;
-          if (nestedValue.IsScalar()) {
-            try {
-              nested[nestedKey] = nestedValue.as<int>();
-              continue;
-            } catch (...) {
-            }
-            try {
-              nested[nestedKey] = nestedValue.as<double>();
-              continue;
-            } catch (...) {
-            }
-            try {
-              nested[nestedKey] = nestedValue.as<bool>();
-              continue;
-            } catch (...) {
-            }
-            try {
-              nested[nestedKey] = nestedValue.as<std::string>();
-              continue;
-            } catch (...) {
-            }
-          } else if (nestedValue.IsSequence()) {
-            try {
-              nested[nestedKey] = nestedValue.as<std::vector<int>>();
-              continue;
-            } catch (...) {
-            }
-            try {
-              nested[nestedKey] = nestedValue.as<std::vector<double>>();
-              continue;
-            } catch (...) {
-            }
-            try {
-              nested[nestedKey] = nestedValue.as<std::vector<std::string>>();
-              continue;
-            } catch (...) {
-            }
-          }
-        }
-        data[key] = nested;
-      }
+      data[key] = parseNodeToAny(value);
     }
-  } catch (std::exception& e) {
+  } catch (const std::exception& e) {
     raiseError("Could not read configuration from " + yamlFile_ + ": " +
                e.what());
+  } catch (...) {
+    raiseError("Could not read configuration from " + yamlFile_ +
+               ": unknown error");
   }
   return data;
 }
@@ -227,58 +275,66 @@ void ParametersBase::writeYaml(const std::string& filename) {
   if (filename_.empty()) {
     filename_ = yamlFile_;
   }
-
   try {
-    cv::FileStorage fs(filename_, cv::FileStorage::WRITE);
-    if (!fs.isOpened()) {
-      raiseError("Could not write configuration to " + filename_);
-    }
-    fs << "{";  // Start of map
+    YAML::Node root;
     for (const auto& [key, value] : data_) {
       if (value.type() == typeid(int)) {
-        fs << key << std::any_cast<int>(value);
+        root[key] = std::any_cast<int>(value);
       } else if (value.type() == typeid(double)) {
-        fs << key << std::any_cast<double>(value);
+        root[key] = std::any_cast<double>(value);
       } else if (value.type() == typeid(bool)) {
-        fs << key << std::any_cast<bool>(value);
+        root[key] = std::any_cast<bool>(value);
       } else if (value.type() == typeid(std::string)) {
-        fs << key << std::any_cast<std::string>(value);
+        root[key] = std::any_cast<std::string>(value);
       } else if (value.type() == typeid(std::vector<int>)) {
-        fs << key << std::any_cast<std::vector<int>>(value);
+        root[key] = std::any_cast<std::vector<int>>(value);
       } else if (value.type() == typeid(std::vector<double>)) {
-        fs << key << std::any_cast<std::vector<double>>(value);
+        root[key] = std::any_cast<std::vector<double>>(value);
       } else if (value.type() == typeid(std::vector<std::string>)) {
-        fs << key << std::any_cast<std::vector<std::string>>(value);
+        root[key] = std::any_cast<std::vector<std::string>>(value);
       } else if (value.type() == typeid(DictType)) {
-        fs << key << "{";  // Start of nested map
+        YAML::Node nested;
         DictType nestedDict = std::any_cast<DictType>(value);
         for (const auto& [nestedKey, nestedValue] : nestedDict) {
           if (nestedValue.type() == typeid(int)) {
-            fs << nestedKey << std::any_cast<int>(nestedValue);
+            nested[nestedKey] = std::any_cast<int>(nestedValue);
           } else if (nestedValue.type() == typeid(double)) {
-            fs << nestedKey << std::any_cast<double>(nestedValue);
+            nested[nestedKey] = std::any_cast<double>(nestedValue);
           } else if (nestedValue.type() == typeid(bool)) {
-            fs << nestedKey << std::any_cast<bool>(nestedValue);
+            nested[nestedKey] = std::any_cast<bool>(nestedValue);
           } else if (nestedValue.type() == typeid(std::string)) {
-            fs << nestedKey << std::any_cast<std::string>(nestedValue);
+            nested[nestedKey] = std::any_cast<std::string>(nestedValue);
           } else if (nestedValue.type() == typeid(std::vector<int>)) {
-            fs << nestedKey << std::any_cast<std::vector<int>>(nestedValue);
+            nested[nestedKey] = std::any_cast<std::vector<int>>(nestedValue);
           } else if (nestedValue.type() == typeid(std::vector<double>)) {
-            fs << nestedKey << std::any_cast<std::vector<double>>(nestedValue);
+            nested[nestedKey] = std::any_cast<std::vector<double>>(nestedValue);
           } else if (nestedValue.type() == typeid(std::vector<std::string>)) {
-            fs << nestedKey
-               << std::any_cast<std::vector<std::string>>(nestedValue);
+            nested[nestedKey] =
+                std::any_cast<std::vector<std::string>>(nestedValue);
           } else {
+            std::println("Unsupported data type for key:  {}", nestedKey);
+            std::println("Type: {}", nestedValue.type().name());
             raiseError("Unsupported data type for key: " + nestedKey);
           }
         }
-        fs << "}";  // End of nested map
+        root[key] = nested;
       } else {
+        std::println("Unsupported data type for key:  {}", key);
+        std::println("Type: {}", value.type().name());
         raiseError("Unsupported data type for key: " + key);
       }
     }
-    fs << "}";  // End of map
-    fs.release();
+
+    // Emit YAML to file
+    std::ofstream fout(filename_);
+    if (!fout.is_open()) {
+      raiseError("Could not write configuration to " + filename_);
+    }
+    fout << YAML::Dump(root);
+    fout.close();
+  } catch (const std::exception& e) {
+    raiseError(std::string("Could not write configuration to ") + filename_ +
+               ": " + e.what());
   } catch (...) {
     raiseError("Could not write configuration to " + filename_);
   }
@@ -1000,8 +1056,9 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
       camera->frameType_ = typeid(FrameType).hash_code();
-      camera->reprojectionErrorType_ = typeid(
-          aslam::backend::SimpleReprojectionError<FrameType>).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else if (distModel == DistortionModel::Equidistant) {
       // Equidistant distortion
@@ -1018,8 +1075,9 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       camera->geometry_ = geom;
 
       camera->frameType_ = typeid(FrameType).hash_code();
-      camera->reprojectionErrorType_ = typeid(
-          aslam::backend::SimpleReprojectionError<FrameType>).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else if (distModel == DistortionModel::FOV) {
       // FOV distortion
