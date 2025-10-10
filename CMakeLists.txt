@@ -13,6 +13,11 @@ find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(Matplot++ REQUIRED)
+find_package(yaml-cpp REQUIRED)
+find_package(OpenMP REQUIRED)
+
+# Disable tests in third-party libraries
+set(BUILD_TESTING OFF CACHE BOOL "Disable third-party tests" FORCE)
 
 add_subdirectory(thirdparty/argparse)
 
@@ -84,9 +89,11 @@ file(GLOB_RECURSE SRC_FILES src/*.cpp)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
+    OpenMP::OpenMP_CXX
     Eigen3::Eigen
     Ceres::ceres
     Matplot++::matplot
+    yaml-cpp
     argparse
     aslam_backend::aslam_backend
     aslam_splines::aslam_splines
@@ -106,3 +113,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     include
     ${OpenCV_INCLUDE_DIRS}
 )
+
+# Re-enable testing for our own tests only
+set(BUILD_TESTING ON CACHE BOOL "Enable our own tests" FORCE)
+enable_testing()
+
+add_subdirectory(tests)

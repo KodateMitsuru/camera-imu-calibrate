@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <rapidcsv.hpp>
 
 #include <algorithm>
@@ -186,7 +187,7 @@ void ImuDatasetReader::loadFromCSV() {
 
       for (size_t i = 0; i < numRows; ++i) {
         try {
-          double timestamp = doc.GetCell<double>(colTimestamp_, i);
+          uint64_t timestamp = doc.GetCell<uint64_t>(colTimestamp_, i);
           double omega_x = doc.GetCell<double>(colOmegaX_, i);
           double omega_y = doc.GetCell<double>(colOmegaY_, i);
           double omega_z = doc.GetCell<double>(colOmegaZ_, i);
@@ -195,7 +196,7 @@ void ImuDatasetReader::loadFromCSV() {
           double alpha_z = doc.GetCell<double>(colAlphaZ_, i);
 
           aslam::Time aslamTime;
-          aslamTime.fromSec(timestamp);
+          aslamTime.fromNSec(timestamp);
 
           Eigen::Vector3d omega(omega_x, omega_y, omega_z);
           Eigen::Vector3d alpha(alpha_x, alpha_y, alpha_z);

@@ -1,24 +1,15 @@
+#include <yaml-cpp/yaml.h>
+
 #include <algorithm>
 #include <any>
 #include <cmath>
 #include <iostream>
 #include <kalibr_common/ConfigReader.hpp>
-#include <opencv2/core/persistence.hpp>
 #include <print>
 #include <stdexcept>
 
 // ASLAM camera includes
-#include <aslam/cameras/CameraGeometry.hpp>
-#include <aslam/cameras/DoubleSphereProjection.hpp>
-#include <aslam/cameras/EquidistantDistortion.hpp>
-#include <aslam/cameras/ExtendedUnifiedProjection.hpp>
-#include <aslam/cameras/FovDistortion.hpp>
-#include <aslam/cameras/GlobalShutter.hpp>
-#include <aslam/cameras/NoDistortion.hpp>
-#include <aslam/cameras/NoMask.hpp>
-#include <aslam/cameras/OmniProjection.hpp>
-#include <aslam/cameras/PinholeProjection.hpp>
-#include <aslam/cameras/RadialTangentialDistortion.hpp>
+#include <aslam/cameras.hpp>
 #include <vector>
 // ASLAM backend includes
 #include <aslam/Frame.hpp>
@@ -127,18 +118,107 @@ ParametersBase::ParametersBase(const std::string& yamlFile,
 ParametersBase::DictType ParametersBase::readYaml() {
   DictType data;
   try {
-    cv::FileStorage fs(yamlFile_, cv::FileStorage::READ);
-    if (!fs.isOpened()) {
-      raiseError("Could not read configuration from " + yamlFile_);
+    YAML::Node root = YAML::LoadFile(yamlFile_);
+    if (!root) {
+      raiseError("Could not open configuration file: " + yamlFile_);
     }
 
-    for (const auto& key : fs.root()) {
-      data[key] = fs[key];
+    for (auto it = root.begin(); it != root.end(); ++it) {
+      const std::string key = it->first.as<std::string>();
+      const YAML::Node& value = it->second;
+
+      // 简单类型自动转换
+      if (value.IsScalar()) {
+        // 尝试 int, double, bool, string
+        try {
+          data[key] = value.as<int>();
+          continue;
+        } catch (...) {
+        }
+        try {
+          data[key] = value.as<double>();
+          continue;
+        } catch (...) {
+        }
+        try {
+          data[key] = value.as<bool>();
+          continue;
+        } catch (...) {
+        }
+        try {
+          data[key] = value.as<std::string>();
+          continue;
+        } catch (...) {
+        }
+      } else if (value.IsSequence()) {
+        // 尝试 vector<int>, vector<double>, vector<string>
+        try {
+          data[key] = value.as<std::vector<int>>();
+          continue;
+        } catch (...) {
+        }
+        try {
+          data[key] = value.as<std::vector<double>>();
+          continue;
+        } catch (...) {
+        }
+        try {
+          data[key] = value.as<std::vector<std::string>>();
+          continue;
+        } catch (...) {
+        }
+      } else if (value.IsMap()) {
+        // 递归解析嵌套 map
+        DictType nested;
+        for (auto it2 = value.begin(); it2 != value.end(); ++it2) {
+          const std::string nestedKey = it2->first.as<std::string>();
+          const YAML::Node& nestedValue = it2->second;
+          if (nestedValue.IsScalar()) {
+            try {
+              nested[nestedKey] = nestedValue.as<int>();
+              continue;
+            } catch (...) {
+            }
+            try {
+              nested[nestedKey] = nestedValue.as<double>();
+              continue;
+            } catch (...) {
+            }
+            try {
+              nested[nestedKey] = nestedValue.as<bool>();
+              continue;
+            } catch (...) {
+            }
+            try {
+              nested[nestedKey] = nestedValue.as<std::string>();
+              continue;
+            } catch (...) {
+            }
+          } else if (nestedValue.IsSequence()) {
+            try {
+              nested[nestedKey] = nestedValue.as<std::vector<int>>();
+              continue;
+            } catch (...) {
+            }
+            try {
+              nested[nestedKey] = nestedValue.as<std::vector<double>>();
+              continue;
+            } catch (...) {
+            }
+            try {
+              nested[nestedKey] = nestedValue.as<std::vector<std::string>>();
+              continue;
+            } catch (...) {
+            }
+          }
+        }
+        data[key] = nested;
+      }
     }
-  } catch (...) {
-    raiseError("Could not read configuration from " + yamlFile_);
+  } catch (std::exception& e) {
+    raiseError("Could not read configuration from " + yamlFile_ + ": " +
+               e.what());
   }
-
   return data;
 }
 
@@ -914,24 +994,14 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
           aslam::cameras::RadialTangentialDistortion>
           proj(fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::PinholeProjection<
-              aslam::cameras::RadialTangentialDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::DistortedPinholeCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
-
-      // Lambda闭包捕获具体类型 - 编译期确定，零运行时开销，无需反射！
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ = typeid(
+          aslam::backend::SimpleReprojectionError<FrameType>).hash_code();
 
     } else if (distModel == DistortionModel::Equidistant) {
       // Equidistant distortion
@@ -940,23 +1010,16 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::PinholeProjection<aslam::cameras::EquidistantDistortion>
           proj(fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::PinholeProjection<
-              aslam::cameras::EquidistantDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType =
+          aslam::cameras::EquidistantDistortedPinholeCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ = typeid(
+          aslam::backend::SimpleReprojectionError<FrameType>).hash_code();
 
     } else if (distModel == DistortionModel::FOV) {
       // FOV distortion
@@ -964,44 +1027,32 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::PinholeProjection<aslam::cameras::FovDistortion> proj(
           fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::PinholeProjection<aslam::cameras::FovDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::FovDistortedPinholeCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else if (distModel == DistortionModel::None) {
       // No distortion
       aslam::cameras::PinholeProjection<aslam::cameras::NoDistortion> proj(
           fu, fv, pu, pv, resolution.x(), resolution.y());
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::PinholeProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::PinholeCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else {
       throw std::runtime_error(
@@ -1024,23 +1075,16 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::OmniProjection<aslam::cameras::RadialTangentialDistortion>
           proj(xi, fu, fv, pu, pv, resolution.x(), resolution.y(), dist);
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::OmniProjection<
-              aslam::cameras::RadialTangentialDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::DistortedOmniCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else if (distModel == DistortionModel::Equidistant) {
       throw std::runtime_error(
@@ -1051,22 +1095,16 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::OmniProjection<aslam::cameras::NoDistortion> proj(
           xi, fu, fv, pu, pv, resolution.x(), resolution.y());
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::OmniProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::OmniCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else {
       throw std::runtime_error(
@@ -1088,23 +1126,16 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::ExtendedUnifiedProjection<aslam::cameras::NoDistortion>
           proj(alpha, beta, fu, fv, pu, pv, resolution.x(), resolution.y());
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::ExtendedUnifiedProjection<
-              aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::ExtendedUnifiedCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else {
       throw std::runtime_error(
@@ -1126,22 +1157,16 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
       aslam::cameras::DoubleSphereProjection<aslam::cameras::NoDistortion> proj(
           xi, alpha, fu, fv, pu, pv, resolution.x(), resolution.y());
 
-      using GeometryType = aslam::cameras::CameraGeometry<
-          aslam::cameras::DoubleSphereProjection<aslam::cameras::NoDistortion>,
-          aslam::cameras::GlobalShutter, aslam::cameras::NoMask>;
+      using GeometryType = aslam::cameras::DoubleSphereCameraGeometry;
       using FrameType = aslam::Frame<GeometryType>;
 
       auto geom = std::make_shared<GeometryType>(proj);
       camera->geometry_ = geom;
 
-      camera->errorFactory_ =
-          [geom](const Eigen::Vector2d& measurement,
-                 const Eigen::Matrix2d& invR,
-                 const aslam::backend::HomogeneousExpression& point) {
-            return std::make_shared<
-                aslam::backend::SimpleReprojectionError<FrameType>>(
-                measurement, invR, point, *geom);
-          };
+      camera->frameType_ = typeid(FrameType).hash_code();
+      camera->reprojectionErrorType_ =
+          typeid(aslam::backend::SimpleReprojectionError<FrameType>)
+              .hash_code();
 
     } else {
       throw std::runtime_error(
@@ -1164,14 +1189,6 @@ std::shared_ptr<AslamCamera> AslamCamera::fromParameters(
 
   return fromParameters(cameraModel, intrinsics, distModel, distCoeffs,
                         resolution);
-}
-
-std::shared_ptr<aslam::backend::ErrorTerm> AslamCamera::createReprojectionError(
-    const Eigen::Vector2d& measurement, const Eigen::Matrix2d& invR,
-    const aslam::backend::HomogeneousExpression& point) const {
-  // 直接调用存储的工厂函数 - 零运行时开销！
-  // errorFactory_在创建相机时已经绑定了具体的类型
-  return errorFactory_(measurement, invR, point);
 }
 
 }  // namespace kalibr

@@ -211,7 +211,7 @@ struct checkTypeIsNotOpencvMat<cv::Mat, B> {
   enum {
     value = true,  // yes true is correct here
   };
-  BOOST_STATIC_ASSERT_MSG(
+  static_assert(
       (B == !B) /*false*/,
       "You cannot use the macro SM_CHECKSAME or SM_CHECKSAMEMEMBER on opencv "
       "mat. Use sm::opencv::isBinaryEqual instead");
@@ -222,7 +222,7 @@ struct checkTypeIsNotOpencvMat<std::shared_ptr<cv::Mat>, B> {
   enum {
     value = true,  // yes true is correct here
   };
-  BOOST_STATIC_ASSERT_MSG(
+  static_assert(
       (B == !B) /*false*/,
       "You cannot use the macro SM_CHECKSAME or SM_CHECKSAMEMEMBER on opencv "
       "mat. Use sm::opencv::isBinaryEqual instead");
@@ -233,7 +233,7 @@ struct checkTypeIsNotOpencvMat<cv::Mat*, B> {
   enum {
     value = true,  // yes true is correct here
   };
-  BOOST_STATIC_ASSERT_MSG(
+  static_assert(
       (B == !B) /*false*/,
       "You cannot use the macro SM_CHECKSAME or SM_CHECKSAMEMEMBER on opencv "
       "mat. Use sm::opencv::isBinaryEqual instead");

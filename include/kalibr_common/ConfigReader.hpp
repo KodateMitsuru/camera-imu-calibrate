@@ -5,21 +5,15 @@
 #include <aslam/cameras/CameraGeometryBase.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/HomogeneousExpression.hpp>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 #include <any>
-
-// Forward declarations
-// namespace aslam {
-// namespace backend {
-// class ErrorTerm;
-// class HomogeneousExpression;
-// }  // namespace backend
-// }  // namespace aslam
 
 namespace kalibr {
 
@@ -277,32 +271,28 @@ class AslamCamera {
     return geometry_;
   }
 
-  /**
-   * @brief Create reprojection error term with correct concrete type
-   *
-   * This method uses the stored concrete geometry type to create
-   * a properly typed SimpleReprojectionError without needing reflection.
-   *
-   * @param measurement The measured 2D image point
-   * @param invR The inverse measurement covariance
-   * @param point The 3D point expression in camera coordinates
-   * @return Shared pointer to the error term
-   */
-  std::shared_ptr<aslam::backend::ErrorTerm> createReprojectionError(
-      const Eigen::Vector2d& measurement, const Eigen::Matrix2d& invR,
-      const aslam::backend::HomogeneousExpression& point) const;
+  std::size_t getFrameType() const {
+    return frameType_;
+  }
+  std::size_t getKeypointType() const {
+    return keypointType_;
+  }
+  std::size_t getReprojectionErrorType() const {
+    return reprojectionErrorType_;
+  }
+  std::size_t getDistortionType() const {
+    return distortionType_;
+  }
 
  private:
   AslamCamera() = default;
 
   std::shared_ptr<aslam::cameras::CameraGeometryBase> geometry_;
 
-  // Store the concrete camera type for dispatch
-  // This enables zero-overhead type dispatch without reflection
-  std::function<std::shared_ptr<aslam::backend::ErrorTerm>(
-      const Eigen::Vector2d&, const Eigen::Matrix2d&,
-      const aslam::backend::HomogeneousExpression&)>
-      errorFactory_;
+  std::size_t frameType_;
+  std::size_t keypointType_;
+  std::size_t reprojectionErrorType_;
+  std::size_t distortionType_;
 };
 
 // Helper functions

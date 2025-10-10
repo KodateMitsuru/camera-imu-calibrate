@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
   bool estimate_imu_delay = program.get<bool>("--imu-delay-by-correlation");
 
   int max_iter = program.get<int>("--max-iter");
-  [[maybe_unused]] double reprojection_sigma =
+  double reprojection_sigma =
       program.get<double>("--reprojection-sigma");  // TODO: Use in IccCamera
   double timeoffset_padding = program.get<double>("--timeoffset-padding");
 

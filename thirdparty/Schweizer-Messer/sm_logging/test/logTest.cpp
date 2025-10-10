@@ -37,7 +37,7 @@ TEST(LoggingTestSuite, testBasic)
         {
             SM_INFO_STREAM_THROTTLE(1.0,"test throttle: " << (++x));
             SM_INFO_THROTTLE(1.0,"test throttle: %d",(++x));
-            std::this_thread::sleep( boost::posix_time::milliseconds(100) );
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
         }
     }
