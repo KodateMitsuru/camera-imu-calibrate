@@ -171,7 +171,7 @@ void plotGyroError(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Subplot 1: Plot all errors
-  matplot::subplot(2, 1, 1);
+  matplot::subplot(2, 1, 0);
   std::vector<double> indices(errors.size());
   std::iota(indices.begin(), indices.end(), 0.0);
   matplot::plot(indices, errors);
@@ -198,7 +198,7 @@ void plotGyroError(const IccCalibrator& calibrator, int imuIdx,
 
   // Subplot 2: Histogram of filtered errors
   if (!filtered_errors.empty()) {
-    matplot::subplot(2, 1, 2);
+    matplot::subplot(2, 1, 1);
     int nbins = std::max(10, static_cast<int>(filtered_errors.size() / 100));
     matplot::hist(filtered_errors, nbins);
     matplot::xlabel("error (rad/s) squared");
@@ -241,7 +241,7 @@ void plotGyroErrorPerAxis(const IccCalibrator& calibrator, int imuIdx,
 
   // Plot errors for each axis (x, y, z)
   for (int axis = 0; axis < 3; ++axis) {
-    matplot::subplot(3, 1, axis + 1);
+    matplot::subplot(3, 1, axis);
 
     // Extract errors for this axis
     std::vector<double> axis_errors;
@@ -314,7 +314,7 @@ void plotAccelError(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Subplot 1: Plot all errors
-  matplot::subplot(2, 1, 1);
+  matplot::subplot(2, 1, 0);
   std::vector<double> indices(errors.size());
   std::iota(indices.begin(), indices.end(), 0.0);
   matplot::plot(indices, errors);
@@ -341,7 +341,7 @@ void plotAccelError(const IccCalibrator& calibrator, int imuIdx,
 
   // Subplot 2: Histogram of filtered errors
   if (!filtered_errors.empty()) {
-    matplot::subplot(2, 1, 2);
+    matplot::subplot(2, 1, 1);
     int nbins = std::max(10, static_cast<int>(filtered_errors.size() / 100));
     matplot::hist(filtered_errors, nbins);
     matplot::xlabel("(m/s^2) squared");
@@ -384,7 +384,7 @@ void plotAccelErrorPerAxis(const IccCalibrator& calibrator, int imuIdx,
 
   // Plot errors for each axis (x, y, z)
   for (int axis = 0; axis < 3; ++axis) {
-    matplot::subplot(3, 1, axis + 1);
+    matplot::subplot(3, 1, axis);
 
     // Extract errors for this axis
     std::vector<double> axis_errors;
@@ -755,7 +755,7 @@ std::vector<matplot::axes_handle> plotVectorOverTime(
   std::vector<matplot::axes_handle> subplots;
   // Plot each component (X, Y, Z)
   for (int i = 0; i < 3; ++i) {
-    auto plot = matplot::subplot(3, 1, i + 1);
+    auto plot = matplot::subplot(3, 1, i);
 
     // Extract component values
     std::vector<double> component;

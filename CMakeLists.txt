@@ -12,7 +12,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
-find_package(Matplot++ REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -22,6 +21,7 @@ pkg_search_module(FFTW REQUIRED fftw3 IMPORTED_TARGET)
 set(BUILD_TESTING OFF CACHE BOOL "Disable third-party tests" FORCE)
 
 add_subdirectory(thirdparty/argparse)
+add_subdirectory(thirdparty/matplotplusplus)
 
 # Schweizer-Messer libraries
 add_subdirectory(thirdparty/Schweizer-Messer/sm_common)
@@ -94,10 +94,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenMP::OpenMP_CXX
     Eigen3::Eigen
     Ceres::ceres
-    Matplot++::matplot
     PkgConfig::FFTW
     yaml-cpp
     argparse
+    matplot
     aslam_backend::aslam_backend
     aslam_splines::aslam_splines
     incremental_calibration::incremental_calibration

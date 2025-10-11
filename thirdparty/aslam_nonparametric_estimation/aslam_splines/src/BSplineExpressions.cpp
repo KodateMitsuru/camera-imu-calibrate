@@ -409,15 +409,16 @@ namespace aslam {
 
         	double initTime = time.toScalar();
 
-        	if(bufferTmax + initTime > _spline->spline().t_max())
+        	if(bufferTmax + initTime > _spline->spline().t_max()) {
         		_bufferRight = _spline->spline().numValidTimeSegments()-1;
-        	else
+        	} else {
         		_bufferRight = _spline->spline().segmentIndex(initTime + bufferTmax);
-
-        	if(initTime - bufferTmin < _spline->spline().t_min())
+            }
+        	if(initTime - bufferTmin < _spline->spline().t_min()) {
         		_bufferLeft = 0;
-        	else
+        	} else {
         		_bufferLeft = _spline->spline().segmentIndex(initTime - bufferTmin);
+            }
 
         	// take the full time span of the time segments
 			_bufferTmax = _spline->spline().timeInterval(_bufferRight).second;
