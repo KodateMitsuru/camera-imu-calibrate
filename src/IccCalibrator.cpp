@@ -37,8 +37,7 @@ void IccCalibrator::initDesignVariables(
     bool noChainExtrinsics, bool estimateGravityLength,
     const Eigen::Vector3d& initialGravityEstimate) {
   // Initialize the system pose spline (always attached to imu0)
-  poseDv_ =
-      std::make_shared<aslam::splines::BSplinePoseDesignVariable>(poseSpline);
+  poseDv_ = new aslam::splines::BSplinePoseDesignVariable(poseSpline);
   addSplineDesignVariables(problem, *poseDv_);
 
   // Add the calibration target orientation design variable

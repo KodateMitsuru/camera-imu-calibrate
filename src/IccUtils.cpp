@@ -352,7 +352,7 @@ void generateReport(const IccCalibrator& calibrator,
   // Split text into lines
   std::vector<std::string> text;
   for (std::string line; std::getline(sstream, line);) {
-    text.push_back(line + "\n");
+    text.push_back(line);
   }
 
   size_t linesPerPage = 35;
@@ -366,6 +366,9 @@ void generateReport(const IccCalibrator& calibrator,
     // Get current axes
     auto ax = fig->current_axes();
     ax->clear();
+    ax->position({0.0, 1.0, 0.0, 1.0});
+
+
 
     // Turn off axis
     matplot::axis(matplot::off);
@@ -375,11 +378,10 @@ void generateReport(const IccCalibrator& calibrator,
     std::string pageText;
     for (size_t i = textIdx; i < endIdx; ++i) {
       pageText += text[i];
+      pageText += "\\n";
     }
-
-    // Add text to figure
-    // Note: Matplot++ text positioning is in data coordinates
-    matplot::text(0.05, 0.95, pageText);
+    auto t = matplot::text(ax, 0, 0, pageText);
+    t->font_size(7);
     matplot::title("Calibration Report - Page " +
                    std::to_string(figs.size() + 1));
 
@@ -482,8 +484,26 @@ void generateReport(const IccCalibrator& calibrator,
 
         // Configure the figure to use pdfcairo terminal and save
         // Matplot++ will use gnuplot backend to generate PDF
-        figs[i]->save(figPdf);
+        // Suppress gnuplot multiplot warning by unsetting warnings in the
+        // backend before saving. See:
+        // https://github.com/alandefreitas/matplotplusplus/issues/385 and
+        // https://github.com/alandefreitas/matplotplusplus/issues/432
+        try {
+          if (figs[i] && figs[i]->backend()) {
+            // backend()->run_command may not be available on all backends;
+            // guard with try/catch to avoid crashing the report generation.
+            try {
+              figs[i]->backend()->run_command("unset warnings");
+            } catch (...) {
+              // ignore; best-effort
+            }
+          }
+        } catch (...) {
+          // ignore any error while attempting to access backend
+        }
 
+        figs[i]->save(figPdf);
+        figs[i]->draw();
         std::println("  Generated page {}/{}", i + 1, figs.size());
       }
 
@@ -491,6 +511,11 @@ void generateReport(const IccCalibrator& calibrator,
       std::string fileList;
       for (const auto& file : pdfFiles) {
         fileList += file + " ";
+      }
+      // Show figures on screen if requested
+      if (showOnScreen) {
+        std::println("\nDisplaying figures on screen...");
+        getFigureRegistry().show();
       }
 
       std::string command = std::format("pdfunite {} {}", fileList, filename);
@@ -526,12 +551,6 @@ void generateReport(const IccCalibrator& calibrator,
 
   std::println("\nReport generation completed");
   std::println("Total figures created: {}", figs.size());
-
-  // Show figures on screen if requested
-  if (showOnScreen) {
-    std::println("\nDisplaying figures on screen...");
-    matplot::show();
-  }
 }
 
 void exportPoses(const IccCalibrator& calibrator, const std::string& filename) {

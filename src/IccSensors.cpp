@@ -476,7 +476,7 @@ bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
 
 void IccCamera::addCameraErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
-    const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>&
+    aslam::splines::BSplinePoseDesignVariable* 
         poseSplineDv,
     const aslam::backend::TransformationExpression& T_cN_b,
     double blakeZissermanDf, double timeOffsetPadding) {
@@ -526,63 +526,55 @@ void IccCamera::addCameraErrorTerms(
         Eigen::Matrix2d::Identity() * cornerUncertainty_ * cornerUncertainty_;
     Eigen::Matrix2d invR = R.inverse();
 
-    std::shared_ptr<aslam::FrameBase> frame;
+    aslam::FrameBase* frame;
     if (camera_->getFrameType() ==
         typeid(aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>)
             .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(
                    aslam::Frame<aslam::cameras::
                                     EquidistantDistortedPinholeCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<aslam::Frame<
-          aslam::cameras::EquidistantDistortedPinholeCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::EquidistantDistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<
                           aslam::cameras::FovDistortedPinholeCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<aslam::cameras::PinholeCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::PinholeCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::PinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<aslam::cameras::OmniCameraGeometry>)
                    .hash_code()) {
-      frame =
-          std::make_shared<aslam::Frame<aslam::cameras::OmniCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::OmniCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(
                    aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>)
                    .hash_code()) {
-      frame = std::make_shared<
-          aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>>();
+      frame = new aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>();
     } else {
       throw std::runtime_error("Unsupported camera frame type");
     }
     frame->setGeometryBase(camera_->getGeometry());
 
     for (size_t pidx = 0; pidx < imageCornerPoints.size(); ++pidx) {
-      std::shared_ptr<aslam::KeypointBase> k =
-          std::make_shared<aslam::Keypoint<2>>();
+      aslam::KeypointBase* k =
+          new aslam::Keypoint<2>();
       k->vsSetMeasurement(Eigen::Vector2d(imageCornerPoints[pidx].x,
                                           imageCornerPoints[pidx].y));
       k->vsSetInverseMeasurementCovariance(invR);
-      frame->addBaseKeypoint(k.get());
+      frame->addBaseKeypoint(k);
     }
     // Store reprojection errors for this observation
     std::vector<std::shared_ptr<aslam::backend::ErrorTerm>> reprojectionErrors;
@@ -612,7 +604,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>>>(
             reinterpret_cast<
                 aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -624,7 +616,7 @@ void IccCamera::addCameraErrorTerms(
                 aslam::cameras::EquidistantDistortedPinholeCameraGeometry>>>(
             reinterpret_cast<aslam::Frame<
                 aslam::cameras::EquidistantDistortedPinholeCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -634,7 +626,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>>>(
             reinterpret_cast<aslam::Frame<
                 aslam::cameras::FovDistortedPinholeCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(
@@ -645,7 +637,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::PinholeCameraGeometry>>>(
             reinterpret_cast<
                 aslam::Frame<aslam::cameras::PinholeCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -655,7 +647,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>>>(
             reinterpret_cast<
                 aslam::Frame<aslam::cameras::DistortedOmniCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<
@@ -664,7 +656,7 @@ void IccCamera::addCameraErrorTerms(
         rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
             aslam::Frame<aslam::cameras::OmniCameraGeometry>>>(
             reinterpret_cast<aslam::Frame<aslam::cameras::OmniCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -674,7 +666,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>>>(
             reinterpret_cast<
                 aslam::Frame<aslam::cameras::ExtendedUnifiedCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -684,7 +676,7 @@ void IccCamera::addCameraErrorTerms(
             aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>>>(
             reinterpret_cast<
                 aslam::Frame<aslam::cameras::DoubleSphereCameraGeometry>*>(
-                frame.get()),
+                frame),
             pidx, p);
       } else {
         throw std::runtime_error("Unsupported camera frame type");
@@ -833,7 +825,7 @@ double IccCameraChain::getResultTimeshift(int camNr) const {
 
 void IccCameraChain::addCameraChainerrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
-    const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>&
+    aslam::splines::BSplinePoseDesignVariable*
         poseSplineDv,
     double blakeZissermanDf, double timeOffsetPadding) {
   for (auto [camNr, cam] : std::ranges::views::enumerate(camList_)) {
@@ -1082,11 +1074,11 @@ void IccImu::addBiasMotionTerms(
   Eigen::Matrix3d Waccel =
       Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
   auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_.get(),
+      aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_,
                                                        Wgyro,1);
   problem.addErrorTerm(gyroBiasMotionErr);
   auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_.get(),
+      aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_,
                                                        Waccel,1);
   problem.addErrorTerm(accelBiasMotionErr);
 }

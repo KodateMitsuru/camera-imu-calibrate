@@ -94,7 +94,7 @@ class IccCalibrator {
   void saveCamChainParametersYaml(const std::string& resultFile);
 
   // Getters
-  std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> getPoseDv() const {
+  aslam::splines::BSplinePoseDesignVariable* getPoseDv() const {
     return poseDv_;
   }
   // 保存gravityDv_的实际类型信息
@@ -132,7 +132,7 @@ class IccCalibrator {
  private:
   std::vector<std::shared_ptr<IccImu>> imuList_;
   std::shared_ptr<IccCameraChain> cameraChain_;
-  std::shared_ptr<aslam::splines::BSplinePoseDesignVariable> poseDv_;
+  aslam::splines::BSplinePoseDesignVariable* poseDv_;
   std::shared_ptr<aslam::backend::DesignVariable> gravityDv_;
   std::size_t gravityDvType_;
   std::shared_ptr<aslam::backend::EuclideanExpression> gravityExpression_;

@@ -187,7 +187,7 @@ class IccCamera {
    */
   void addCameraErrorTerms(
       aslam::backend::OptimizationProblemBase& problem,
-      const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>&
+      aslam::splines::BSplinePoseDesignVariable*
           poseSplineDv,
       const aslam::backend::TransformationExpression& T_cN_b,
       double blakeZissermanDf = 0.0, double timeOffsetPadding = 0.0);
@@ -300,7 +300,7 @@ class IccCameraChain {
 
   void addCameraChainerrorTerms(
       aslam::backend::OptimizationProblemBase& problem,
-      const std::shared_ptr<aslam::splines::BSplinePoseDesignVariable>&
+      aslam::splines::BSplinePoseDesignVariable*
           poseSplineDv,
       double blakeZissermanDf = 0.0, double timeOffsetPadding = 0.0);
 
@@ -381,11 +381,10 @@ class IccImu {
   template <typename ProblemType>
     requires HasOptimizationProblemMethods<ProblemType>
   void addDesignVariables(ProblemType& problem) {
-    gyroBiasDv_ =
-        std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(
+    gyroBiasDv_ = new aslam::splines::EuclideanBSplineDesignVariable(
             *gyroBias_);
     accelBiasDv_ =
-        std::make_shared<aslam::splines::EuclideanBSplineDesignVariable>(
+        new aslam::splines::EuclideanBSplineDesignVariable(
             *accelBias_);
 
     addSplineDesignVariables(problem, *gyroBiasDv_, true, HELPER_GROUP_ID);
@@ -460,12 +459,12 @@ class IccImu {
   }
 
   // Get bias design variables (for plotting)
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>
+  aslam::splines::EuclideanBSplineDesignVariable*
   getAccelBiasDv() const {
     return accelBiasDv_;
   }
 
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable>
+  aslam::splines::EuclideanBSplineDesignVariable*
   getGyroBiasDv() const {
     return gyroBiasDv_;
   }
@@ -486,8 +485,8 @@ class IccImu {
   std::vector<ImuMeasurement> imuData_;
 
   // Design variables
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> gyroBiasDv_;
-  std::shared_ptr<aslam::splines::EuclideanBSplineDesignVariable> accelBiasDv_;
+  aslam::splines::EuclideanBSplineDesignVariable* gyroBiasDv_;
+  aslam::splines::EuclideanBSplineDesignVariable* accelBiasDv_;
   std::shared_ptr<aslam::backend::RotationQuaternion>
       q_i_b_Dv_;  // Rotation from IMU to body
   std::shared_ptr<aslam::backend::EuclideanPoint>
