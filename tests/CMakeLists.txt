@@ -8,7 +8,7 @@ add_test(
         --cams ${CMAKE_SOURCE_DIR}/test_data/cam_april-camchain.yaml
         --imu ${CMAKE_SOURCE_DIR}/test_data/imu_adis16448.yaml
         --target ${CMAKE_SOURCE_DIR}/test_data/april_6x6_80x80cm.yaml
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
 # Set test properties
