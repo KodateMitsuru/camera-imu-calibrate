@@ -355,20 +355,19 @@ void generateReport(const IccCalibrator& calibrator,
     text.push_back(line);
   }
 
-  size_t linesPerPage = 35;
+  size_t linesPerPage = 40;
   size_t textIdx = 0;
 
   // Create text pages
   while (textIdx < text.size()) {
     auto fig = getOrCreateFigure(offset);
+    fig->size(1920, 1080);
     offset += 1;
 
-    // Get current axes
-    auto ax = fig->current_axes();
-    ax->clear();
-    ax->position({0.0, 1.0, 0.0, 1.0});
-
-
+    // Get current axes (inset slightly so text doesn't touch edges)
+    auto ax = fig->add_axes({0.1, 0.1, 0.8, 0.8});
+    ax->x_axis().limits({0, 1});
+    ax->y_axis().limits({0, 1});
 
     // Turn off axis
     matplot::axis(matplot::off);
@@ -380,9 +379,9 @@ void generateReport(const IccCalibrator& calibrator,
       pageText += text[i];
       pageText += "\\n";
     }
-    auto t = matplot::text(ax, 0, 0, pageText);
+    auto t = ax->text( 0, 1, pageText);
     t->font_size(7);
-    matplot::title("Calibration Report - Page " +
+    fig->title("Calibration Report - Page " +
                    std::to_string(figs.size() + 1));
 
     figs.push_back(fig);
@@ -393,6 +392,7 @@ void generateReport(const IccCalibrator& calibrator,
   // Plot trajectory
   // =========================================================================
   auto trajFig = getOrCreateFigure(1003);
+  trajFig->size(800, 600);
   plotTrajectory(calibrator, 1003, true, "imu0: estimated poses");
   figs.push_back(trajFig);
 
@@ -405,42 +405,49 @@ void generateReport(const IccCalibrator& calibrator,
 
     // IMU rates
     auto fig1 = getOrCreateFigure(offset + idx);
+    fig1->size(800, 600);
     plotIMURates(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig1);
     offset += static_cast<int>(imuList.size());
 
     // Accelerations
     auto fig2 = getOrCreateFigure(offset + idx);
+    fig2->size(800, 600);
     plotAccelerations(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig2);
     offset += static_cast<int>(imuList.size());
 
     // Acceleration error per axis
     auto fig3 = getOrCreateFigure(offset + idx);
+    fig3->size(800, 600);
     plotAccelErrorPerAxis(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig3);
     offset += static_cast<int>(imuList.size());
 
     // Accelerometer bias
     auto fig4 = getOrCreateFigure(offset + idx);
+    fig4->size(800, 600);
     plotAccelBias(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig4);
     offset += static_cast<int>(imuList.size());
 
     // Angular velocities
     auto fig5 = getOrCreateFigure(offset + idx);
+    fig5->size(1280, 768);
     plotAngularVelocities(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig5);
     offset += static_cast<int>(imuList.size());
 
     // Gyroscope error per axis
     auto fig6 = getOrCreateFigure(offset + idx);
+    fig6->size(800, 600);
     plotGyroErrorPerAxis(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig6);
     offset += static_cast<int>(imuList.size());
 
     // Gyroscope bias
     auto fig7 = getOrCreateFigure(offset + idx);
+    fig7->size(800, 600);
     plotAngularVelocityBias(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig7);
     offset += static_cast<int>(imuList.size());
@@ -457,6 +464,7 @@ void generateReport(const IccCalibrator& calibrator,
       int fig_num = offset + idx;
 
       auto fig = getOrCreateFigure(fig_num);
+      fig->size(800, 600);
       std::string title =
           "cam" + std::to_string(cidx) + ": reprojection errors";
       plotReprojectionScatter(calibrator, idx, fig_num, true, true, title);
@@ -501,9 +509,8 @@ void generateReport(const IccCalibrator& calibrator,
         } catch (...) {
           // ignore any error while attempting to access backend
         }
-
         figs[i]->save(figPdf);
-        figs[i]->draw();
+        figs[i]->backend(nullptr);  // Detach backend to write to disk
         std::println("  Generated page {}/{}", i + 1, figs.size());
       }
 

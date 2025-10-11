@@ -284,6 +284,10 @@ int main(int argc, char* argv[]) {
     std::println("Initializing camera chain:");
     std::println("  Loading: {}", cams_yaml);
     auto chainConfig = kalibr::CameraChainParameters(cams_yaml);
+    for (size_t i = 0; i < chainConfig.numCameras(); ++i) {
+      auto camParams = chainConfig.getCameraParameters(i);
+      camParams->setReprojectionSigma(reprojection_sigma);
+    }
     size_t numCameras = chainConfig.numCameras();
     std::println("  Number of cameras: {}", numCameras);
 
