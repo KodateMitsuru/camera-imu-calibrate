@@ -469,7 +469,7 @@ void plotAccelBias(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Plot the bias over time
-  plotVectorOverTime(times, biases,
+  auto subplots = plotVectorOverTime(times, biases,
                      "imu" + std::to_string(imuIdx) +
                          ": estimated accelerometer bias (imu frame)",
                      "bias (m/s^2)", "", figureNumber, clearFigure, noShow);
@@ -479,8 +479,8 @@ void plotAccelBias(const IccCalibrator& calibrator, int imuIdx,
 
   // Add ±3σ bounds to each subplot
   for (int i = 0; i < 3; ++i) {
-    matplot::subplot(3, 1, i + 1);
-    matplot::hold(matplot::on);
+    auto plot = subplots[i];
+    plot->hold(matplot::on);
 
     // Calculate bounds: 3 * sigma_rw * sqrt(time)
     std::vector<double> upper_bound, lower_bound;
@@ -492,11 +492,11 @@ void plotAccelBias(const IccCalibrator& calibrator, int imuIdx,
 
     // Plot bounds as red dashed lines
     if (!times.empty()) {
-      matplot::plot(times, upper_bound, "r--");
-      matplot::plot(times, lower_bound, "r--");
+      plot->plot(times, upper_bound, "r--");
+      plot->plot(times, lower_bound, "r--");
     }
 
-    matplot::hold(matplot::off);
+    plot->hold(matplot::off);
   }
 
   if (!noShow) {
@@ -543,7 +543,7 @@ void plotAngularVelocityBias(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Plot the bias over time
-  plotVectorOverTime(
+  auto subplots = plotVectorOverTime(
       times, biases,
       "imu" + std::to_string(imuIdx) + ": estimated gyro bias (imu frame)",
       "bias (rad/s)", "", figureNumber, clearFigure, noShow);
@@ -553,8 +553,8 @@ void plotAngularVelocityBias(const IccCalibrator& calibrator, int imuIdx,
 
   // Add ±3σ bounds to each subplot
   for (int i = 0; i < 3; ++i) {
-    matplot::subplot(3, 1, i + 1);
-    matplot::hold(matplot::on);
+    auto plot = subplots[i];
+    plot->hold(matplot::on);
 
     // Calculate bounds: 3 * sigma_rw * sqrt(time)
     std::vector<double> upper_bound, lower_bound;
@@ -566,11 +566,11 @@ void plotAngularVelocityBias(const IccCalibrator& calibrator, int imuIdx,
 
     // Plot bounds as red dashed lines
     if (!times.empty()) {
-      matplot::plot(times, upper_bound, "r--");
-      matplot::plot(times, lower_bound, "r--");
+      plot->plot(times, upper_bound, "r--");
+      plot->plot(times, lower_bound, "r--");
     }
 
-    matplot::hold(matplot::off);
+    plot->hold(matplot::off);
   }
 
   if (!noShow) {
@@ -618,16 +618,15 @@ void plotAngularVelocities(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Plot predicted measurements as lines
-  plotVectorOverTime(
+  auto subplots = plotVectorOverTime(
       times, predicted_omega,
       "Comparison of predicted and measured angular velocities (body frame)",
       "ang. velocity (rad/s)", "est. bodyspline", figureNumber, clearFigure,
       noShow, 3.0);
-
   // Overlay measured values as scatter points on each subplot
   for (int axis = 0; axis < 3; ++axis) {
-    matplot::subplot(3, 1, axis + 1);
-    matplot::hold(matplot::on);
+    auto plot = subplots[axis];
+    plot->hold(matplot::on);
 
     // Extract measured values for this axis
     std::vector<double> measured_vals;
@@ -637,15 +636,15 @@ void plotAngularVelocities(const IccCalibrator& calibrator, int imuIdx,
 
     // Plot as 'x' markers
     if (!times.empty() && !measured_vals.empty()) {
-      auto scatter_plot = matplot::scatter(times, measured_vals);
+      auto scatter_plot = plot->scatter(times, measured_vals);
       scatter_plot->marker("x");
       scatter_plot->marker_size(6);
       scatter_plot->display_name("imu" + std::to_string(imuIdx));
     }
 
     // Add legend
-    matplot::legend();
-    matplot::hold(matplot::off);
+    plot->legend();
+    plot->hold(matplot::off);
   }
 
   if (!noShow) {
@@ -698,16 +697,15 @@ void plotAccelerations(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Plot predicted measurements as lines
-  plotVectorOverTime(
+  auto subplots = plotVectorOverTime(
       times, predicted_accel,
       "Comparison of predicted and measured specific force (imu0 frame)",
       "specific force (m/s^2)", "est. bodyspline", figureNumber, clearFigure,
       noShow, 3.0);
-
   // Overlay measured values as scatter points on each subplot
   for (int axis = 0; axis < 3; ++axis) {
-    matplot::subplot(3, 1, axis + 1);
-    matplot::hold(matplot::on);
+    auto plot = subplots[axis];
+    plot->hold(matplot::on);
 
     // Extract measured values for this axis
     std::vector<double> measured_vals;
@@ -717,15 +715,15 @@ void plotAccelerations(const IccCalibrator& calibrator, int imuIdx,
 
     // Plot as 'x' markers
     if (!times.empty() && !measured_vals.empty()) {
-      auto scatter_plot = matplot::scatter(times, measured_vals);
+      auto scatter_plot = plot->scatter(times, measured_vals);
       scatter_plot->marker("x");
       scatter_plot->marker_size(6);
       scatter_plot->display_name("imu" + std::to_string(imuIdx));
     }
 
     // Add legend
-    matplot::legend();
-    matplot::hold(matplot::off);
+    plot->legend();
+    plot->hold(matplot::off);
   }
 
   if (!noShow) {
@@ -733,19 +731,18 @@ void plotAccelerations(const IccCalibrator& calibrator, int imuIdx,
   }
 }
 
-void plotVectorOverTime(const std::vector<double>& times,
-                        const std::vector<Eigen::Vector3d>& values,
-                        const std::string& title, const std::string& ylabel,
-                        const std::string& label, int figureNumber,
-                        bool clearFigure, bool noShow, double lineWidth) {
+std::vector<matplot::axes_handle> plotVectorOverTime(
+    const std::vector<double>& times,
+    const std::vector<Eigen::Vector3d>& values, const std::string& title,
+    const std::string& ylabel, const std::string& label, int figureNumber,
+    bool clearFigure, bool noShow, double lineWidth) {
   if (times.size() != values.size()) {
-    return;  // Size mismatch
+    return {};  // Size mismatch
   }
 
   // Get or create figure
   auto fig = getOrCreateFigure(figureNumber);
   auto ax = fig->current_axes();
-
   if (clearFigure) {
     ax->clear();
   }
@@ -755,10 +752,10 @@ void plotVectorOverTime(const std::vector<double>& times,
     // Note: matplot++ doesn't have direct suptitle, so we'll add it to first
     // subplot
   }
-
+  std::vector<matplot::axes_handle> subplots;
   // Plot each component (X, Y, Z)
   for (int i = 0; i < 3; ++i) {
-    matplot::subplot(3, 1, i + 1);
+    auto plot = matplot::subplot(3, 1, i + 1);
 
     // Extract component values
     std::vector<double> component;
@@ -768,7 +765,7 @@ void plotVectorOverTime(const std::vector<double>& times,
 
     // Plot the component with blue color
     if (!times.empty() && !component.empty()) {
-      auto line = matplot::plot(times, component, "b-");
+      auto line = plot->plot(times, component, "b-");
       line->line_width(lineWidth);
 
       // Set display name if label is provided
@@ -790,11 +787,13 @@ void plotVectorOverTime(const std::vector<double>& times,
     if (!label.empty()) {
       matplot::legend();
     }
+    subplots.push_back(plot);
   }
 
   if (!noShow) {
     matplot::show();
   }
+  return subplots;
 }
 
 void plotReprojectionScatter(const IccCalibrator& calibrator, int camId,

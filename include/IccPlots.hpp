@@ -104,7 +104,7 @@ void plotAccelerations(const IccCalibrator& calibrator, int imuIdx,
 /**
  * @brief Plot vector over time (generic)
  */
-void plotVectorOverTime(const std::vector<double>& times,
+std::vector<matplot::axes_handle> plotVectorOverTime(const std::vector<double>& times,
                         const std::vector<Eigen::Vector3d>& values,
                         const std::string& title = "",
                         const std::string& ylabel = "",
