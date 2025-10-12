@@ -4,3 +4,6 @@
 [submodule "thirdparty/matplotplusplus"]
 	path = thirdparty/matplotplusplus
 	url = https://github.com/alandefreitas/matplotplusplus.git
+[submodule "thirdparty/lunasvg"]
+	path = thirdparty/lunasvg
+	url = https://github.com/sammycage/lunasvg.git

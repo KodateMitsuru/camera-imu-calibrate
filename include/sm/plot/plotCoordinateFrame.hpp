@@ -29,11 +29,12 @@ namespace plot {
 inline void plotCoordinateFrame(matplot::axes_handle ax,
                                 const Eigen::Matrix4d& T_0f, double size = 1.0,
                                 double linewidth = 3.0,
-                                const std::string name = "") {
+                                const std::string /*name*/ = "") {
   // Create points in the frame: origin and three axis endpoints
   // Columns: origin, x-axis, y-axis, z-axis
   Eigen::Matrix4d p_f;
-  p_f << 0, size, 0, 0, 0, 0, size, 0, 0, 0, 0, size, 1, 1, 1, 1;
+  p_f << 0, 0, 0, 1, size, 0, 0, 1, 0, size, 0, 1, 0, 0, size, 1;
+  p_f.transposeInPlace();
 
   // Transform points to the plotting frame
   Eigen::Matrix4d p_0 = T_0f * p_f;
@@ -65,11 +66,11 @@ inline void plotCoordinateFrame(matplot::axes_handle ax,
   line_z->line_width(linewidth);
 
   // Add text label if name is provided
-  if (!name.empty()) {
-    // Note: matplotplusplus's text support for 3D may be limited
-    // Using text at the origin position as a workaround
-    ax->text(p_0(0, 0), p_0(1, 0), name);
-  }
+  // if (!name.empty()) {
+  //   // Note: matplotplusplus's text support for 3D may be limited
+  //   // Using text at the origin position as a workaround
+  //   // ax->text(p_0(0, 0), p_0(1, 0), name);
+  // }
 }
 }  // namespace plot
 }  // namespace sm

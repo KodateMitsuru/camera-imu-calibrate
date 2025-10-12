@@ -16,12 +16,14 @@ find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_search_module(FFTW REQUIRED fftw3 IMPORTED_TARGET)
+pkg_search_module(Magick++ REQUIRED Magick++ IMPORTED_TARGET)
 
 # Disable tests in third-party libraries
 set(BUILD_TESTING OFF CACHE BOOL "Disable third-party tests" FORCE)
 
 add_subdirectory(thirdparty/argparse)
 add_subdirectory(thirdparty/matplotplusplus)
+add_subdirectory(thirdparty/lunasvg)
 
 # Schweizer-Messer libraries
 add_subdirectory(thirdparty/Schweizer-Messer/sm_common)
@@ -95,9 +97,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Eigen3::Eigen
     Ceres::ceres
     PkgConfig::FFTW
+    PkgConfig::Magick++
     yaml-cpp
     argparse
     matplot
+    lunasvg
     aslam_backend::aslam_backend
     aslam_splines::aslam_splines
     incremental_calibration::incremental_calibration
