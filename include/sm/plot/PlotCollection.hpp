@@ -102,6 +102,7 @@ class PlotCollection {
 
     // Create new figure
     auto fig = matplot::figure(true);  // quiet mode
+    fig->size(800, 600);
     figures_by_id_[figure_id] = fig;
 
     // Associate with name if provided

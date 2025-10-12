@@ -1,3 +1,5 @@
+#include <Magick++.h>
+#include <lunasvg.h>
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
@@ -9,6 +11,7 @@
 #include <format>
 #include <print>
 #include <ranges>
+#include <sm/plot/plotCoordinateFrame.hpp>
 
 namespace kalibr {
 
@@ -32,27 +35,32 @@ void plotTrajectory(const IccCalibrator& calibrator, int figureNumber,
 
   auto& imu = imuList[0];  // Use first IMU
 
-  // Collect timestamps within spline time range
-  std::vector<double> timestamps;
+  // Collect IMU timestamps within spline time range, then resample at 10 Hz
+  std::vector<double> imu_times;
   for (const auto& im : imu->getImuData()) {
     double t = im.stamp.toSec() + imu->getTimeOffset();
     if (t >= bodyspline.t_min() && t <= bodyspline.t_max()) {
-      timestamps.push_back(t);
+      imu_times.push_back(t);
     }
+  }
+
+  if (imu_times.empty()) {
+    std::println(stderr, "No valid timestamps for trajectory plotting");
+    return;
+  }
+
+  // Resample at fixed 10 Hz (dt = 0.1s) between min and max IMU time
+  double t_min = *std::min_element(imu_times.begin(), imu_times.end());
+  double t_max = *std::max_element(imu_times.begin(), imu_times.end());
+  const double dt = 0.1;  // 10 Hz
+  std::vector<double> timestamps;
+  for (double t = t_min; t < t_max; t += dt) {
+    timestamps.push_back(t);
   }
 
   if (timestamps.empty()) {
     std::println(stderr, "No valid timestamps for trajectory plotting");
     return;
-  }
-
-  // Evaluate positions along the trajectory
-  std::vector<double> x_coords, y_coords, z_coords;
-  for (double t : timestamps) {
-    Eigen::Vector3d position = bodyspline.position(t);
-    x_coords.push_back(position.x());
-    y_coords.push_back(position.y());
-    z_coords.push_back(position.z());
   }
 
   // Get or create figure
@@ -63,53 +71,47 @@ void plotTrajectory(const IccCalibrator& calibrator, int figureNumber,
     ax->clear();
   }
 
+  // Evaluate positions along the trajectory
+  std::vector<double> x_coords, y_coords, z_coords;
+  std::vector<Eigen::Matrix4d> frames;
+  for (double t : timestamps) {
+    Eigen::Vector3d position = bodyspline.position(t);
+    auto orientation = sm::kinematics::r2quat(bodyspline.orientation(t));
+    auto T = sm::kinematics::Transformation(orientation, position);
+    frames.push_back(T.T());
+    x_coords.push_back(position.x());
+    y_coords.push_back(position.y());
+    z_coords.push_back(position.z());
+  }
+
   // Plot the 3D trajectory
-  auto line = matplot::plot3(x_coords, y_coords, z_coords);
+  auto line = ax->plot3(x_coords, y_coords, z_coords);
   line->color("b");
   line->line_width(2.0);
 
-  // Add start and end markers
-  if (!x_coords.empty()) {
-    matplot::hold(matplot::on);
-
-    // Start point (green)
-    auto start = matplot::scatter3(std::vector<double>{x_coords.front()},
-                                   std::vector<double>{y_coords.front()},
-                                   std::vector<double>{z_coords.front()});
-    start->marker_color("g");
-    start->marker_size(10);
-    start->display_name("Start");
-
-    // End point (red)
-    auto end = matplot::scatter3(std::vector<double>{x_coords.back()},
-                                 std::vector<double>{y_coords.back()},
-                                 std::vector<double>{z_coords.back()});
-    end->marker_color("r");
-    end->marker_size(10);
-    end->display_name("End");
-
-    matplot::hold(matplot::off);
+  ax->hold(matplot::on);
+  for (const auto& frame : frames) {
+    sm::plot::plotCoordinateFrame(ax, frame, 0.05);
   }
+  ax->hold(matplot::off);
 
   // Set labels and title
-  matplot::xlabel("x [m]");
-  matplot::ylabel("y [m]");
-  matplot::zlabel("z [m]");
+  ax->xlabel("x [m]");
+  ax->ylabel("y [m]");
+  ax->zlabel("z [m]");
+  ax->x_axis().reverse(matplot::on);
 
   if (!title.empty()) {
-    matplot::title(title);
+    ax->title(title);
   } else {
-    matplot::title("Estimated IMU Trajectory");
+    ax->title("Estimated IMU Trajectory");
   }
 
   // Enable grid
-  matplot::grid(matplot::on);
+  ax->grid(matplot::on);
 
   // Set equal aspect ratio for better visualization
-  matplot::axis(matplot::equal);
-
-  // Add legend
-  matplot::legend();
+  ax->axis(matplot::automatic);
 }
 
 void printErrorStatistics(const IccCalibrator& calibrator, std::ostream& dest) {
@@ -340,8 +342,7 @@ void generateReport(const IccCalibrator& calibrator,
   int offset = 3010;
 
   std::println("Generating calibration report...");
-  std::println("Target filename: {} (PDF export not yet implemented)",
-               filename);
+  std::println("Target filename: {}", filename);
 
   // =========================================================================
   // Create text pages with results
@@ -361,13 +362,12 @@ void generateReport(const IccCalibrator& calibrator,
   // Create text pages
   while (textIdx < text.size()) {
     auto fig = getOrCreateFigure(offset);
-    fig->size(1920, 1080);
     offset += 1;
 
     // Get current axes (inset slightly so text doesn't touch edges)
-    auto ax = fig->add_axes({0.1, 0.1, 0.8, 0.8});
-    ax->x_axis().limits({0, 1});
-    ax->y_axis().limits({0, 1});
+    auto ax = fig->current_axes();
+    ax->xlim({0, 1});
+    ax->ylim({0, 1});
 
     // Turn off axis
     matplot::axis(matplot::off);
@@ -379,10 +379,8 @@ void generateReport(const IccCalibrator& calibrator,
       pageText += text[i];
       pageText += "\\n";
     }
-    auto t = ax->text( 0, 1, pageText);
-    t->font_size(7);
-    fig->title("Calibration Report - Page " +
-                   std::to_string(figs.size() + 1));
+    auto t = ax->text(0, 1, pageText);
+    t->font_size(12);
 
     figs.push_back(fig);
     textIdx = endIdx;
@@ -392,7 +390,6 @@ void generateReport(const IccCalibrator& calibrator,
   // Plot trajectory
   // =========================================================================
   auto trajFig = getOrCreateFigure(1003);
-  trajFig->size(800, 600);
   plotTrajectory(calibrator, 1003, true, "imu0: estimated poses");
   figs.push_back(trajFig);
 
@@ -405,49 +402,42 @@ void generateReport(const IccCalibrator& calibrator,
 
     // IMU rates
     auto fig1 = getOrCreateFigure(offset + idx);
-    fig1->size(800, 600);
     plotIMURates(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig1);
     offset += static_cast<int>(imuList.size());
 
     // Accelerations
     auto fig2 = getOrCreateFigure(offset + idx);
-    fig2->size(800, 600);
     plotAccelerations(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig2);
     offset += static_cast<int>(imuList.size());
 
     // Acceleration error per axis
     auto fig3 = getOrCreateFigure(offset + idx);
-    fig3->size(800, 600);
     plotAccelErrorPerAxis(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig3);
     offset += static_cast<int>(imuList.size());
 
     // Accelerometer bias
     auto fig4 = getOrCreateFigure(offset + idx);
-    fig4->size(800, 600);
     plotAccelBias(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig4);
     offset += static_cast<int>(imuList.size());
 
     // Angular velocities
     auto fig5 = getOrCreateFigure(offset + idx);
-    fig5->size(1280, 768);
     plotAngularVelocities(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig5);
     offset += static_cast<int>(imuList.size());
 
     // Gyroscope error per axis
     auto fig6 = getOrCreateFigure(offset + idx);
-    fig6->size(800, 600);
     plotGyroErrorPerAxis(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig6);
     offset += static_cast<int>(imuList.size());
 
     // Gyroscope bias
     auto fig7 = getOrCreateFigure(offset + idx);
-    fig7->size(800, 600);
     plotAngularVelocityBias(calibrator, idx, offset + idx, true, true);
     figs.push_back(fig7);
     offset += static_cast<int>(imuList.size());
@@ -464,7 +454,6 @@ void generateReport(const IccCalibrator& calibrator,
       int fig_num = offset + idx;
 
       auto fig = getOrCreateFigure(fig_num);
-      fig->size(800, 600);
       std::string title =
           "cam" + std::to_string(cidx) + ": reprojection errors";
       plotReprojectionScatter(calibrator, idx, fig_num, true, true, title);
@@ -479,78 +468,73 @@ void generateReport(const IccCalibrator& calibrator,
   // =========================================================================
   std::println("Report contains {} figures", figs.size());
 
+  if (showOnScreen) {
+    std::println("\nDisplaying figures on screen...");
+    getFigureRegistry().show();
+  }
+
   if (!filename.empty() && !figs.empty()) {
     std::println("Saving report to PDF: {}", filename);
 
     try {
       // Save each figure as individual PDF using gnuplot's pdfcairo terminal
-      std::vector<std::string> pdfFiles;
-
+      std::vector<std::string> svgFiles;
+      std::vector<std::string> pngFiles;
       for (size_t i = 0; i < figs.size(); ++i) {
-        std::string figPdf = std::format(".report_fig_{:04d}.pdf", i);
-        pdfFiles.push_back(figPdf);
-
-        // Configure the figure to use pdfcairo terminal and save
-        // Matplot++ will use gnuplot backend to generate PDF
-        // Suppress gnuplot multiplot warning by unsetting warnings in the
-        // backend before saving. See:
-        // https://github.com/alandefreitas/matplotplusplus/issues/385 and
-        // https://github.com/alandefreitas/matplotplusplus/issues/432
-        try {
-          if (figs[i] && figs[i]->backend()) {
-            // backend()->run_command may not be available on all backends;
-            // guard with try/catch to avoid crashing the report generation.
-            try {
-              figs[i]->backend()->run_command("unset warnings");
-            } catch (...) {
-              // ignore; best-effort
-            }
-          }
-        } catch (...) {
-          // ignore any error while attempting to access backend
-        }
-        figs[i]->save(figPdf);
+        std::string figSvg = std::format(".report_fig_{:04d}.svg", i);
+        std::string figPng = std::format(".report_fig_{:04d}.png", i);
+        svgFiles.push_back(figSvg);
+        pngFiles.push_back(figPng);
+        figs[i]->size(1280, 768);
+        figs[i]->backend()->run_command("unset warnings");
+        figs[i]->title("Calibration Report - Page " + std::to_string(i + 1));
+        figs[i]->save(figSvg);
         figs[i]->backend(nullptr);  // Detach backend to write to disk
+        auto document = lunasvg::Document::loadFromFile(figSvg);
+        if (document == nullptr) {
+          throw std::runtime_error("Failed to save SVG file: " + figSvg);
+        }
+        auto bitmap = document->renderToBitmap(2560, 1536);
+        if (bitmap.isNull()) {
+          throw std::runtime_error("Failed to render SVG to bitmap: " + figSvg);
+        }
+        bitmap.writeToPng(figPng);
         std::println("  Generated page {}/{}", i + 1, figs.size());
       }
 
-      // Combine PDFs using pdfunite (from poppler-utils)
-      std::string fileList;
-      for (const auto& file : pdfFiles) {
-        fileList += file + " ";
-      }
-      // Show figures on screen if requested
-      if (showOnScreen) {
-        std::println("\nDisplaying figures on screen...");
-        getFigureRegistry().show();
+      // Combine PNGs using imageagick 'convert' command
+      // std::string fileList;
+      std::vector<Magick::Image> images;
+      for (const auto& file : pngFiles) {
+        Magick::Image image;
+        image.read(file);
+        images.push_back(std::move(image));
       }
 
-      std::string command = std::format("pdfunite {} {}", fileList, filename);
-      std::println("Merging PDFs...");
-      int ret = std::system(command.c_str());
-
-      if (ret == 0) {
+      // std::string command = std::format(
+      //     "magick -units PixelsPerInch -density 300 {} {}", fileList,
+      //     filename);
+      std::println("Merging PNGs...");
+      try {
+        Magick::writeImages(images.begin(), images.end(), filename);
         std::println("✓ Report saved successfully to: {}", filename);
-
         // Clean up temporary files
-        for (const auto& file : pdfFiles) {
+        for (const auto& file : pngFiles) {
+          std::filesystem::remove(file);
+        }
+        for (const auto& file : svgFiles) {
           std::filesystem::remove(file);
         }
         std::println("  Cleaned up temporary files");
-      } else {
-        std::println(stderr,
-                     "✗ Error: Failed to merge PDFs. "
-                     "Make sure 'pdfunite' is installed:");
-        std::println(stderr,
-                     "  Ubuntu/Debian: sudo apt-get install poppler-utils");
-        std::println(stderr, "  macOS: brew install poppler");
-        std::println(stderr, "\nIndividual PDF files are available as:");
-        for (const auto& file : pdfFiles) {
+      } catch (const std::exception& e) {
+        std::println(stderr, "✗ Error: Failed to merge PDFs: {}", e.what());
+        std::println(stderr, "\nIndividual PNG files are available as:");
+        for (const auto& file : pngFiles) {
           std::println(stderr, "  {}", file);
         }
       }
     } catch (const std::exception& e) {
-      std::println(stderr, "✗ Error saving PDF: {}", e.what());
+      std::println(stderr, "✗ Error saving PNG: {}", e.what());
     }
   } else if (filename.empty()) {
     std::println("No filename specified, skipping PDF export");
