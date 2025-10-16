@@ -92,7 +92,7 @@ file(GLOB_RECURSE SRC_FILES src/*.cpp)
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE 
+target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenMP::OpenMP_CXX
     Eigen3::Eigen
     Ceres::ceres
@@ -116,7 +116,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${OpenCV_LIBS}
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE 
+target_include_directories(${PROJECT_NAME} PRIVATE
     include
     PkgConfig::FFTW
     ${OpenCV_INCLUDE_DIRS}
@@ -127,3 +127,4 @@ set(BUILD_TESTING ON CACHE BOOL "Enable our own tests" FORCE)
 enable_testing()
 
 add_subdirectory(tests)
+
