@@ -35,6 +35,7 @@ cd build && cmake .. && make -j$(nproc)
 ## config template
 
 ### camchain.yaml
+
 ```yaml
 cam0:
   camera_model: pinhole
@@ -51,6 +52,7 @@ cam0:
 ```
 
 ### imu.yaml
+
 ```yaml
 accelerometer_noise_density: 0.006    # [m/s^2/sqrt(Hz)]
 accelerometer_random_walk: 0.0002     # [m/s^3/sqrt(Hz)]
@@ -61,12 +63,14 @@ csv_file: /path/to/imu_data.csv       # IMU数据CSV文件
 ```
 
 ### IMU CSV
+
 ```csv
 timestamp_ns,wx,wy,wz,ax,ay,az
 1234567890000000,-0.001,0.002,-0.003,9.81,0.01,-0.02
 ```
 
 ### aprilgrid.yaml
+
 ```yaml
 target_type: 'aprilgrid'
 tagCols: 6
@@ -89,10 +93,11 @@ tagSpacing: 0.3     # 相对于tagSize的比例
 
 ## References
 
-kalibr: https://github.com/ethz-asl/kalibr
+kalibr: <https://github.com/ethz-asl/kalibr>
 
-matplotplusplus: https://github.com/alandefreitas/matplotplusplus
+matplotplusplus: <https://github.com/alandefreitas/matplotplusplus>
 
-rapidcsv: https://github.com/d99kris/rapidcsv
+rapidcsv: <https://github.com/d99kris/rapidcsv>
 
-argparse: https://github.com/p-ranav/argparse
+argparse: <https://github.com/p-ranav/argparse>
+
