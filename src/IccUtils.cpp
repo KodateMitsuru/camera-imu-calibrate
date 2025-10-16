@@ -467,7 +467,9 @@ void generateReport(const IccCalibrator& calibrator,
   // Save to PDF using gnuplot backend
   // =========================================================================
   std::println("Report contains {} figures", figs.size());
-
+  for (const auto& fig : figs) {
+    fig->backend()->run_command("unset warnings");
+  }
   if (showOnScreen) {
     std::println("\nDisplaying figures on screen...");
     getFigureRegistry().show();
@@ -486,7 +488,6 @@ void generateReport(const IccCalibrator& calibrator,
         svgFiles.push_back(figSvg);
         pngFiles.push_back(figPng);
         figs[i]->size(1280, 768);
-        figs[i]->backend()->run_command("unset warnings");
         figs[i]->title("Calibration Report - Page " + std::to_string(i + 1));
         figs[i]->save(figSvg);
         figs[i]->backend(nullptr);  // Detach backend to write to disk

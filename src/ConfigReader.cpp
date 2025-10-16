@@ -288,8 +288,10 @@ void ParametersBase::writeYaml(const std::string& filename) {
         root[key] = std::any_cast<std::string>(value);
       } else if (value.type() == typeid(std::vector<int>)) {
         root[key] = std::any_cast<std::vector<int>>(value);
+        root[key].SetStyle(YAML::EmitterStyle::Flow);
       } else if (value.type() == typeid(std::vector<double>)) {
         root[key] = std::any_cast<std::vector<double>>(value);
+        root[key].SetStyle(YAML::EmitterStyle::Flow);
       } else if (value.type() == typeid(std::vector<std::string>)) {
         root[key] = std::any_cast<std::vector<std::string>>(value);
       } else if (value.type() == typeid(DictType)) {
@@ -306,8 +308,10 @@ void ParametersBase::writeYaml(const std::string& filename) {
             nested[nestedKey] = std::any_cast<std::string>(nestedValue);
           } else if (nestedValue.type() == typeid(std::vector<int>)) {
             nested[nestedKey] = std::any_cast<std::vector<int>>(nestedValue);
+            nested[nestedKey].SetStyle(YAML::EmitterStyle::Flow);
           } else if (nestedValue.type() == typeid(std::vector<double>)) {
             nested[nestedKey] = std::any_cast<std::vector<double>>(nestedValue);
+            nested[nestedKey].SetStyle(YAML::EmitterStyle::Flow);
           } else if (nestedValue.type() == typeid(std::vector<std::string>)) {
             nested[nestedKey] =
                 std::any_cast<std::vector<std::string>>(nestedValue);
@@ -944,7 +948,12 @@ sm::kinematics::Transformation CameraChainParameters::getExtrinsicsImuToCam(
 void CameraChainParameters::setExtrinsicsImuToCam(
     size_t camIdx, const sm::kinematics::Transformation& T) {
   checkCameraIndex(camIdx);
-  auto t_vec = std::vector<double>(T.T().data(), T.T().data() + T.T().size());
+  Eigen::Matrix4d mat = T.T();
+  if (!mat.allFinite()) {
+    raiseError("Invalid T_cam_imu (contains NaN or Inf)");
+  }
+  std::vector<double> t_vec(mat.data(), mat.data() + mat.size());
+  // std::println("Setting T_cam_imu for cam{}: {}", camIdx, t_vec);
   std::any_cast<std::unordered_map<std::string, std::any>&>(
       data_["cam" + std::to_string(camIdx)])["T_cam_imu"] = t_vec;
 }
