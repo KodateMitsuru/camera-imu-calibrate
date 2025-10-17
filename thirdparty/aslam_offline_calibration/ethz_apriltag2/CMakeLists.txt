@@ -61,7 +61,7 @@ target_compile_options(
 target_compile_features(
   ${PROJECT_NAME}
   PUBLIC
-  cxx_std_14
+  cxx_std_23
 )
 
 set_target_properties(
