@@ -2,6 +2,7 @@
 
 #include <argparse/argparse.hpp>
 #include <filesystem>
+#include <format_utils.hpp>
 #include <print>
 
 #include "IccCalibrator.hpp"

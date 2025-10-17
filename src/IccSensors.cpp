@@ -24,6 +24,7 @@
 #include <bsplines/BSplinePose.hpp>
 #include <cmath>
 #include <format>
+#include <format_utils.hpp>
 #include <functional>
 #include <iostream>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
@@ -264,10 +265,9 @@ void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
       1.0 / gyroBiasPriorCount * b_gyro;
 
   std::println("  Orientation prior camera-imu found as: (T_i_c)");
-  std::cout << R_i_c << std::endl;  // Eigen matrices need stream operator
+  std::println("{}",R_i_c);  // Eigen matrices need stream operator
   std::println("  Gyro bias prior found as: (b_gyro)");
-  std::cout << b_gyro.transpose()
-            << std::endl;  // Eigen vectors need stream operator
+  std::println("{}",b_gyro.transpose());  // Eigen vectors need stream operator
 }
 
 Eigen::Vector3d IccCamera::getEstimatedGravity() const { return gravity_w_; }
@@ -734,8 +734,7 @@ void IccCameraChain::initializeBaselines() {
   for (size_t i = 1; i < camList_.size(); ++i) {
     camList_[i]->getExtrinsic() = chainConfig_.getExtrinsicsLastCamToHere(i);
     std::println("Baseline between cam{} and cam{} set to:", i - 1, i);
-    std::cout << "T= " << camList_[i]->getExtrinsic().T()
-              << std::endl;  // Eigen matrix
+    std::println("T= {}", camList_[i]->getExtrinsic().T());
     std::println("Baseline: {} [m]", camList_[i]->getExtrinsic().t().norm());
   }
 }
@@ -1253,7 +1252,7 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
   }
 
   std::println("Estimated imu to reference imu Rotation:");
-  std::cout << q_i_b_Dv->toRotationMatrix() << std::endl;  // Eigen matrix
+  std::println("{}", q_i_b_Dv->toRotationMatrix());  // Eigen matrix
 
   q_i_b_Prior_ = sm::kinematics::r2quat(q_i_b_Dv->toRotationMatrix());
 };

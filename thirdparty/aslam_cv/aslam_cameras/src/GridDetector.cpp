@@ -254,8 +254,8 @@ bool GridDetector::findTargetNoTransformation(
 }  // namespace cameras
 }  // namespace aslam
 
-// export explicit instantions for all included archives
-#include <boost/serialization/export.hpp>
-#include <sm/boost/serialization.hpp>
-BOOST_CLASS_EXPORT_IMPLEMENT(aslam::cameras::GridDetector);
-BOOST_CLASS_EXPORT_IMPLEMENT(aslam::cameras::GridDetector::GridDetectorOptions);
+// // export explicit instantions for all included archives
+// #include <boost/serialization/export.hpp>
+// #include <sm/boost/serialization.hpp>
+// BOOST_CLASS_EXPORT_IMPLEMENT(aslam::cameras::GridDetector);
+// BOOST_CLASS_EXPORT_IMPLEMENT(aslam::cameras::GridDetector::GridDetectorOptions);

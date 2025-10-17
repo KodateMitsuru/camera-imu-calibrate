@@ -4,6 +4,7 @@ project(aslam_cv_backend
   LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 17)
 
 add_library(${PROJECT_NAME}
   src/GridCalibrationTargetDesignVariableContainer.cpp
@@ -40,11 +41,7 @@ target_compile_options(
   "-Wextra"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <format_utils.hpp>
 #include <kalibr_common/ImageDatasetReader.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>

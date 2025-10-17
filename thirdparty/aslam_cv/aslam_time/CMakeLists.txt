@@ -34,11 +34,7 @@ target_compile_options(
   "-Wextra"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  INTERFACE
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

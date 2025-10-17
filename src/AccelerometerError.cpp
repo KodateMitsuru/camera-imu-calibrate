@@ -1,3 +1,4 @@
+#include "format_utils.hpp"
 #include <kalibr_errorterms/AccelerometerError.hpp>
 
 namespace kalibr_errorterms {

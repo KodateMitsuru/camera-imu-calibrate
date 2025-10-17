@@ -1,3 +1,4 @@
+#include "format_utils.hpp"
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>

@@ -35,7 +35,6 @@
 #define SM_ID_HPP
 
 #include <cstdint>
-#include <boost/functional/hash.hpp>
 #include <iostream>
 #include <functional>
 #include <boost/serialization/nvp.hpp>
@@ -202,17 +201,6 @@ namespace sm {
                 return _hash(id.getId());                           \
             }                                                       \
         };                                                          \
-    }                                                                   \
-    namespace boost {                                                   \
-        template<>                                                      \
-        struct hash<FullyQualifiedIdTypeName>                           \
-        {                                                               \
-            hash<uint64_t> _hash;                                       \
-            size_t operator()(const FullyQualifiedIdTypeName & id) const \
-            {                                                           \
-                return _hash(id.getId());                               \
-            }                                                           \
-        };                                                              \
-        } // namespace boost
+    }
 
 #endif /* SM_ID_HPP */
