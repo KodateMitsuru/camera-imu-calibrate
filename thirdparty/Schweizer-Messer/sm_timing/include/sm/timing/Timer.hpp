@@ -1,13 +1,7 @@
 #ifndef SM_TIMER_HPP
 #define SM_TIMER_HPP
 
-#ifndef BOOST_DATE_TIME_NO_LOCALE
-#define BOOST_DATE_TIME_NO_LOCALE
-#include <boost/date_time/posix_time/posix_time.hpp>
-#undef BOOST_DATE_TIME_NO_LOCALE
-#else
-#include <boost/date_time/posix_time/posix_time.hpp>
-#endif
+#include <chrono>
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics.hpp>
@@ -74,7 +68,7 @@ namespace timing {
 #ifdef SM_USE_HIGH_PERF_TIMER
     LARGE_INTEGER m_time;
 #else
-    boost::posix_time::ptime m_time;
+    std::time_t m_time;
 #endif
     bool m_timing;
     size_t m_handle;

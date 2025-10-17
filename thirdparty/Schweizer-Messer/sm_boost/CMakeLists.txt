@@ -6,51 +6,24 @@ project(sm_boost
   LANGUAGES CXX
 )
 
-find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
+set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 
-add_library(${PROJECT_NAME}
-  src/portable_binary_iarchive.cpp
-  src/portable_binary_oarchive.cpp
-)
+# Header-only library: create an INTERFACE target so target_include_directories has a valid target
+add_library(${PROJECT_NAME} INTERFACE)
 
 target_include_directories(
   ${PROJECT_NAME}
-  PUBLIC
+  INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
-
-
-target_link_libraries(
-  ${PROJECT_NAME}
-  PUBLIC
-  Boost::serialization
-  sm_common
-)
-
-target_compile_options(
-  ${PROJECT_NAME}
-  PUBLIC
-  "-Wall"
-  "-Wextra"
-)
-
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
-
-set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
 install(
   TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME}Targets
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin)
+  INCLUDES DESTINATION include)
 
 install(
   EXPORT ${PROJECT_NAME}Targets

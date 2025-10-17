@@ -1,3 +1,4 @@
+#include <chrono>
 #include <sm/timing/Timer.hpp>
 #include <sm/assert_macros.hpp>
 #include <stdio.h>
@@ -92,7 +93,7 @@ namespace timing {
 #ifdef SM_USE_HIGH_PERF_TIMER
     QueryPerformanceCounter(&m_time);
 #else
-    m_time = boost::posix_time::microsec_clock::local_time();
+    m_time = std::chrono::system_clock().now().time_since_epoch().count();
 #endif
   }
   
@@ -105,9 +106,10 @@ namespace timing {
     QueryPerformanceCounter(&end);
     dt = (double)(end.QuadPart - m_time.QuadPart)*Timing::instance().m_clockPeriod;	
 #else
-    boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();
-    boost::posix_time::time_duration t = now - m_time;
-    dt = ((double)t.total_nanoseconds() * 1e-9);
+    std::time_t now =
+        std::chrono::system_clock().now().time_since_epoch().count();
+    auto t = now - m_time;
+    dt = ((double)t * 1e-9);
 #endif
     Timing::instance().addTime(m_handle,dt);
     m_timing = false;
