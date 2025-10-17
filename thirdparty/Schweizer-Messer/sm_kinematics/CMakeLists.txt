@@ -6,6 +6,10 @@ project(sm_kinematics
   LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS ON)
+
 
 find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
@@ -57,11 +61,7 @@ target_compile_definitions(
   "__STRICT_ANSI__"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

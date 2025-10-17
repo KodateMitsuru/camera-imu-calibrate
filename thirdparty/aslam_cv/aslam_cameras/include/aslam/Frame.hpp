@@ -15,15 +15,15 @@
 #include <aslam/Time.hpp>
 #include <aslam/cameras/CameraGeometryBase.hpp>
 #include <aslam/utilities.hpp>
-#include <boost/serialization/access.hpp>
-#include <boost/serialization/shared_ptr.hpp>
-#include <boost/serialization/split_member.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/version.hpp>
-#include <sm/boost/serialization.hpp>
-#include <sm/eigen/serialization.hpp>
+// #include <boost/serialization/access.hpp>
+// #include <boost/serialization/shared_ptr.hpp>
+// #include <boost/serialization/split_member.hpp>
+// #include <boost/serialization/vector.hpp>
+// #include <boost/serialization/version.hpp>
+// #include <sm/boost/serialization.hpp>
+// #include <sm/eigen/serialization.hpp>
 #include <sm/kinematics/Transformation.hpp>
-#include <sm/opencv/serialization.hpp>
+// #include <sm/opencv/serialization.hpp>
 
 #include "FrameBase.hpp"
 #include "Keypoint.hpp"

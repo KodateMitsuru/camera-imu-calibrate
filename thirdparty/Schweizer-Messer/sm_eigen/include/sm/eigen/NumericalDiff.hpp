@@ -4,7 +4,6 @@
 #include <Eigen/Core>
 #include <sm/assert_macros.hpp>
 #include <boost/function.hpp>
-#include <boost/bind.hpp>
 
 namespace sm { namespace eigen {
 

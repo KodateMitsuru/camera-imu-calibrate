@@ -35,11 +35,7 @@ target_compile_definitions(
   "__STRICT_ANSI__"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  INTERFACE
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

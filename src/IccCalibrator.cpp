@@ -11,6 +11,7 @@
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <cstddef>
 #include <exception>
+#include <format_utils.hpp>
 #include <memory>
 #include <print>
 #include <stdexcept>
@@ -193,8 +194,7 @@ void IccCalibrator::optimize(
     if (retval.linearSolverFailure) {
       optimizationFailed = true;
     }
-  } catch (std::exception e) {
-    std::println(stderr, "{}", e.what());
+  } catch (...) {
     optimizationFailed = true;
   }
 

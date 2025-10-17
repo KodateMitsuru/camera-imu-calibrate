@@ -1,3 +1,4 @@
+#include "format_utils.hpp"
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <stdexcept>
 

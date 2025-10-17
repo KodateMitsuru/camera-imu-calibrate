@@ -48,11 +48,7 @@ target_compile_options(
   "-Wno-maybe-uninitialized"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

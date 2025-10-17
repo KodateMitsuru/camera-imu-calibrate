@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <format_utils.hpp>
 #include <kalibr_common/TargetExtractor.hpp>
 #include <opencv2/highgui.hpp>
 #include <print>

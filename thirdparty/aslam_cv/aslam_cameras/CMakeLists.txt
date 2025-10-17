@@ -6,6 +6,8 @@ project(aslam_cameras
   LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(Boost REQUIRED CONFIG COMPONENTS serialization)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -64,11 +66,7 @@ target_compile_options(
   "-Wextra"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 target_compile_options(${PROJECT_NAME} PUBLIC "-Wno-deprecated-copy") # TODO: Fix...
 

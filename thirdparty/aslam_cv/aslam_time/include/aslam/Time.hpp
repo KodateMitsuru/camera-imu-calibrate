@@ -55,9 +55,9 @@
  *********************************************************************/
 
 #include <iostream>
+#include <format>
 #include <cmath>
 #include "Duration.hpp"
-#include <boost/math/special_functions/round.hpp>
 #include <boost/serialization/nvp.hpp>
 
 /*********************************************************************
@@ -150,7 +150,7 @@ class TimeBase {
   ;
   T& fromSec(double t) {
     sec = (uint32_t) floor(t);
-    nsec = (uint32_t) boost::math::round((t - sec) * 1e9);
+    nsec = (uint32_t) std::round((t - sec) * 1e9);
     return *static_cast<T*>(this);
   }
 

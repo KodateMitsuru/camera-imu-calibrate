@@ -10,31 +10,6 @@
 #include <chrono>
 #include <cstdint>
 
-#if (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 15) || \
-    (defined(__GNUC__) && __GNUC__ < 15)
-#include <format>
-namespace std {
-// signed __int128
-template <typename CharT>
-struct formatter<__int128, CharT> : formatter<long long, CharT> {
-  template <typename FormatContext>
-  auto format(__int128 v, FormatContext& ctx) {
-    return formatter<long long, CharT>::format(static_cast<long long>(v), ctx);
-  }
-};
-
-template <typename CharT>
-struct formatter<unsigned __int128, CharT>
-    : formatter<unsigned long long, CharT> {
-  template <typename FormatContext>
-  auto format(unsigned __int128 v, FormatContext& ctx) {
-    return formatter<unsigned long long, CharT>::format(
-        static_cast<unsigned long long>(v), ctx);
-  }
-};
-}  // namespace std
-#endif
-
 namespace sm {
 namespace timing {
 

@@ -49,27 +49,27 @@ class GridDetector {
     /// reprojection threshold for a corner
     float filterCornerMinReprojError;
 
-    /// \brief Serialization
-    enum { CLASS_SERIALIZATION_VERSION = 1 };
-    BOOST_SERIALIZATION_SPLIT_MEMBER()
+    // /// \brief Serialization
+    // enum { CLASS_SERIALIZATION_VERSION = 1 };
+    // BOOST_SERIALIZATION_SPLIT_MEMBER()
 
-    /// \brief Serialization support
-    template <class Archive>
-    void save(Archive &ar, const unsigned int /*version*/) const {
-      ar << BOOST_SERIALIZATION_NVP(plotCornerReprojection);
-      ar << BOOST_SERIALIZATION_NVP(imageStepping);
-      ar << BOOST_SERIALIZATION_NVP(filterCornerOutliers);
-      ar << BOOST_SERIALIZATION_NVP(filterCornerSigmaThreshold);
-      ar << BOOST_SERIALIZATION_NVP(filterCornerMinReprojError);
-    }
-    template <class Archive>
-    void load(Archive &ar, const unsigned int /*version*/) {
-      ar >> BOOST_SERIALIZATION_NVP(plotCornerReprojection);
-      ar >> BOOST_SERIALIZATION_NVP(imageStepping);
-      ar >> BOOST_SERIALIZATION_NVP(filterCornerOutliers);
-      ar >> BOOST_SERIALIZATION_NVP(filterCornerSigmaThreshold);
-      ar >> BOOST_SERIALIZATION_NVP(filterCornerMinReprojError);
-    }
+    // /// \brief Serialization support
+    // template <class Archive>
+    // void save(Archive &ar, const unsigned int /*version*/) const {
+    //   ar << BOOST_SERIALIZATION_NVP(plotCornerReprojection);
+    //   ar << BOOST_SERIALIZATION_NVP(imageStepping);
+    //   ar << BOOST_SERIALIZATION_NVP(filterCornerOutliers);
+    //   ar << BOOST_SERIALIZATION_NVP(filterCornerSigmaThreshold);
+    //   ar << BOOST_SERIALIZATION_NVP(filterCornerMinReprojError);
+    // }
+    // template <class Archive>
+    // void load(Archive &ar, const unsigned int /*version*/) {
+    //   ar >> BOOST_SERIALIZATION_NVP(plotCornerReprojection);
+    //   ar >> BOOST_SERIALIZATION_NVP(imageStepping);
+    //   ar >> BOOST_SERIALIZATION_NVP(filterCornerOutliers);
+    //   ar >> BOOST_SERIALIZATION_NVP(filterCornerSigmaThreshold);
+    //   ar >> BOOST_SERIALIZATION_NVP(filterCornerMinReprojError);
+    // }
   };
 
   /// \brief initialize based on grid geometry
@@ -123,33 +123,33 @@ class GridDetector {
       const cv::Mat &image,
       GridCalibrationTargetObservation &outObservation) const;
 
-  ///////////////////////////////////////////////////
-  // Serialization support
-  ///////////////////////////////////////////////////
-  enum { CLASS_SERIALIZATION_VERSION = 1 };
-  BOOST_SERIALIZATION_SPLIT_MEMBER()
+  // ///////////////////////////////////////////////////
+  // // Serialization support
+  // ///////////////////////////////////////////////////
+  // enum { CLASS_SERIALIZATION_VERSION = 1 };
+  // BOOST_SERIALIZATION_SPLIT_MEMBER()
 
   /// \brief serialization contstructor (don't use this)
   GridDetector();
 
  protected:
-  friend class boost::serialization::access;
+  // friend class boost::serialization::access;
 
-  /// \brief Serialization support
-  template <class Archive>
-  void save(Archive &ar, const unsigned int /*version*/) const {
-    ar << BOOST_SERIALIZATION_NVP(_geometry);
-    ar << BOOST_SERIALIZATION_NVP(_target);
-    ar << BOOST_SERIALIZATION_NVP(_options);
-  }
+  // /// \brief Serialization support
+  // template <class Archive>
+  // void save(Archive &ar, const unsigned int /*version*/) const {
+  //   ar << BOOST_SERIALIZATION_NVP(_geometry);
+  //   ar << BOOST_SERIALIZATION_NVP(_target);
+  //   ar << BOOST_SERIALIZATION_NVP(_options);
+  // }
 
-  template <class Archive>
-  void load(Archive &ar, const unsigned int /*version*/) {
-    ar >> BOOST_SERIALIZATION_NVP(_geometry);
-    ar >> BOOST_SERIALIZATION_NVP(_target);
-    ar >> BOOST_SERIALIZATION_NVP(_options);
-    initializeDetector();
-  }
+  // template <class Archive>
+  // void load(Archive &ar, const unsigned int /*version*/) {
+  //   ar >> BOOST_SERIALIZATION_NVP(_geometry);
+  //   ar >> BOOST_SERIALIZATION_NVP(_target);
+  //   ar >> BOOST_SERIALIZATION_NVP(_options);
+  //   initializeDetector();
+  // }
 
  private:
   /// the camera geometry
@@ -165,7 +165,7 @@ class GridDetector {
 }  // namespace cameras
 }  // namespace aslam
 
-SM_BOOST_CLASS_VERSION(aslam::cameras::GridDetector);
-SM_BOOST_CLASS_VERSION(aslam::cameras::GridDetector::GridDetectorOptions);
+// SM_BOOST_CLASS_VERSION(aslam::cameras::GridDetector);
+// SM_BOOST_CLASS_VERSION(aslam::cameras::GridDetector::GridDetectorOptions);
 
 #endif /* ASLAM_GRID_DETECTOR_HPP */

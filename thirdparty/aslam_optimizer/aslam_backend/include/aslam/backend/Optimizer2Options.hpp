@@ -1,6 +1,8 @@
 #ifndef ASLAM_BACKEND_OPTIMIZER_2_OPTIONS_HPP
 #define ASLAM_BACKEND_OPTIMIZER_2_OPTIONS_HPP
 
+#include <memory>
+
 namespace aslam {
 namespace backend {
 class LinearSystemSolver;

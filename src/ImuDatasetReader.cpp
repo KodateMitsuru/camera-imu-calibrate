@@ -1,12 +1,12 @@
-#include <cstdint>
-#include <rapidcsv.hpp>
-
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
+#include <format_utils.hpp>
 #include <fstream>
 #include <kalibr_common/ImuDatasetReader.hpp>
 #include <print>
 #include <random>
+#include <rapidcsv.hpp>
 #include <sstream>
 #include <stdexcept>
 

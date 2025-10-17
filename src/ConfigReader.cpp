@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <any>
 #include <cmath>
+#include <format_utils.hpp>
 #include <iostream>
 #include <kalibr_common/ConfigReader.hpp>
 #include <print>

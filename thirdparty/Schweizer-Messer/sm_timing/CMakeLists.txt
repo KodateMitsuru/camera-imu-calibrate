@@ -6,6 +6,8 @@ project(sm_timing
   LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 14)
+
 add_library(${PROJECT_NAME}
   src/Timer.cpp
   src/NsecTimeUtilities.cpp
@@ -35,11 +37,7 @@ target_compile_definitions(
   "__STRICT_ANSI__"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

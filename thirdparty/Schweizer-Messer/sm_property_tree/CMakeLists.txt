@@ -6,6 +6,8 @@ project(sm_property_tree
   LANGUAGES CXX
 )
 
+set(CMAKE_CXX_STANDARD 17)
+
 add_library(${PROJECT_NAME}
   src/PropertyTree.cpp
   src/BoostPropertyTreeImplementation.cpp
@@ -38,11 +40,7 @@ target_compile_definitions(
   "__STRICT_ANSI__"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set(INSTALL_CMAKEDIR ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}/cmake)
 

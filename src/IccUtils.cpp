@@ -9,6 +9,7 @@
 #include <IccUtils.hpp>
 #include <filesystem>
 #include <format>
+#include <format_utils.hpp>
 #include <print>
 #include <ranges>
 #include <sm/plot/plotCoordinateFrame.hpp>
@@ -254,8 +255,7 @@ void printErrorStatistics(const IccCalibrator& calibrator, std::ostream& dest) {
 }
 
 void printGravity(const IccCalibrator& calibrator) {
-  std::cout << std::endl;
-  std::cout << "Gravity vector: (in target coordinates): [m/s^2]" << std::endl;
+  std::println("\nGravity vector: (in target coordinates): [m/s^2]");
 
   auto gravityDv = calibrator.getGravityDv();
   if (gravityDv) {
@@ -264,13 +264,13 @@ void printGravity(const IccCalibrator& calibrator) {
       auto g =
           std::dynamic_pointer_cast<aslam::backend::EuclideanPoint>(gravityDv)
               ->toEuclidean();
-      std::cout << g.transpose() << std::endl;
+      std::println("{}", g.transpose());
     } else if (typeIdx ==
                typeid(aslam::backend::EuclideanDirection).hash_code()) {
       auto g = std::dynamic_pointer_cast<aslam::backend::EuclideanDirection>(
                    gravityDv)
                    ->toEuclidean();
-      std::cout << g.transpose() << std::endl;
+      std::println("{}", g.transpose());
     }
   }
 }
@@ -297,7 +297,7 @@ void printResults(const IccCalibrator& calibrator, bool withCov) {
                        .tail(calibrator.getStdTrafoIc().size() - 3)
                        .transpose());
     }
-    std::cout << T_cam_b.T() << std::endl;
+    std::println("{}", T_cam_b.T());
     if (!calibrator.noTimeCalibration()) {
       //             print("")
       //    print("cam{0} to imu0 time: [s] (t_imu = t_cam +
@@ -330,7 +330,7 @@ void printBaselines(const IccCalibrator& calibrator) {
     for (size_t camNr = 0; camNr < nCams - 1; ++camNr) {
       auto [T, baseline] = cameraChain->getResultBaseline(camNr, camNr + 1);
       std::println("\nBaseline (cam{0} to cam{1}): [m] ", camNr, camNr + 1);
-      std::cout << T.T() << std::endl;
+      std::println("{}", T.T());
       std::println("{}[m]", baseline);
     }
   }

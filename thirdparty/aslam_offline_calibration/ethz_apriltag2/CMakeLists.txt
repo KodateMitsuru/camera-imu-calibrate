@@ -58,11 +58,7 @@ target_compile_options(
   "-Wextra"
 )
 
-target_compile_features(
-  ${PROJECT_NAME}
-  PUBLIC
-  cxx_std_23
-)
+
 
 set_target_properties(
   ${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON

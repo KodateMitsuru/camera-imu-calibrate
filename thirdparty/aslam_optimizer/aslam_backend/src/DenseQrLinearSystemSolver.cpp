@@ -33,7 +33,11 @@ namespace aslam {
     void DenseQrLinearSystemSolver::buildSystem(size_t nThreads, bool useMEstimator)
     {
       _J._M.setZero();
-      setupThreadedJob(boost::bind(&DenseQrLinearSystemSolver::evaluateJacobians, this, _1, _2, _3, _4), nThreads, useMEstimator);
+      setupThreadedJob(
+          std::bind(&DenseQrLinearSystemSolver::evaluateJacobians, this,
+                    std::placeholders::_1, std::placeholders::_2,
+                    std::placeholders::_3, std::placeholders::_4),
+          nThreads, useMEstimator);
       _rhs = _J._M.transpose() * _e;
     }
 
