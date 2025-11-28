@@ -5,12 +5,12 @@
 #include <format_utils.hpp>
 #include <print>
 
-#include "IccCalibrator.hpp"
-#include "IccSensors.hpp"
-#include "IccUtils.hpp"
 #include "kalibr_common/ConfigReader.hpp"
 #include "kalibr_common/ImageDatasetReader.hpp"
 #include "kalibr_common/ImuDatasetReader.hpp"
+#include "kalibr_imu_camera_calibration/IccCalibrator.hpp"
+#include "kalibr_imu_camera_calibration/IccSensors.hpp"
+#include "kalibr_imu_camera_calibration/IccUtils.hpp"
 
 // Signal handler for graceful shutdown
 void signalHandler([[maybe_unused]] int signal) {

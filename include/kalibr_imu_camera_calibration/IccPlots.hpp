@@ -4,7 +4,7 @@
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
-#include <IccCalibrator.hpp>
+#include "IccCalibrator.hpp"
 #include <map>
 #include <memory>
 #include <sm/plot/PlotCollection.hpp>

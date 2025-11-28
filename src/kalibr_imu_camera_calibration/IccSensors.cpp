@@ -1,8 +1,6 @@
 #include <ceres/ceres.h>
 
 #include <Eigen/Core>
-#include <IccSensors.hpp>
-#include <algorithm>
 #include <any>
 #include <aslam/backend/BSplineMotionError.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
@@ -31,6 +29,7 @@
 #include <kalibr_common/TargetExtractor.hpp>
 #include <kalibr_errorterms/AccelerometerError.hpp>
 #include <kalibr_errorterms/GyroscopeError.hpp>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <memory>
 #include <opencv2/highgui.hpp>
 #include <print>
@@ -265,9 +264,9 @@ void IccCamera::findOrientationPriorCameraToImu(IccImu& imu) {
       1.0 / gyroBiasPriorCount * b_gyro;
 
   std::println("  Orientation prior camera-imu found as: (T_i_c)");
-  std::println("{}",R_i_c);  // Eigen matrices need stream operator
+  std::println("{}", R_i_c);  // Eigen matrices need stream operator
   std::println("  Gyro bias prior found as: (b_gyro)");
-  std::println("{}",b_gyro.transpose());  // Eigen vectors need stream operator
+  std::println("{}", b_gyro.transpose());  // Eigen vectors need stream operator
 }
 
 Eigen::Vector3d IccCamera::getEstimatedGravity() const { return gravity_w_; }
@@ -394,13 +393,20 @@ bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
     throw std::runtime_error(
         "No observations available for spline initialization");
   }
-
   Eigen::VectorXd times(numObs);
   Eigen::Matrix<double, 6, Eigen::Dynamic> curve(6, numObs);
 
-  // Extract times and transform observations to curve values
+  // Sort observations by timestamp to ensure nondecreasing time sequence
+  std::vector<int> order(numObs);
+  for (int i = 0; i < numObs; ++i) order[i] = i;
+  std::stable_sort(order.begin(), order.end(), [this](int a, int b) {
+    return targetObservations_[a].time().toSec() <
+           targetObservations_[b].time().toSec();
+  });
+
+  // Extract times and transform observations to curve values in sorted order
   for (int i = 0; i < numObs; ++i) {
-    const auto& obs = targetObservations_[i];
+    const auto& obs = targetObservations_[order[i]];
     times(i) = obs.time().toSec() + timeshiftCamToImuPrior_;
 
     // T_t_c: target to camera transformation
@@ -476,8 +482,7 @@ bsplines::BSplinePose IccCamera::initPoseSplineFromCamera(
 
 void IccCamera::addCameraErrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
-    aslam::splines::BSplinePoseDesignVariable* 
-        poseSplineDv,
+    aslam::splines::BSplinePoseDesignVariable* poseSplineDv,
     const aslam::backend::TransformationExpression& T_cN_b,
     double blakeZissermanDf, double timeOffsetPadding) {
   std::println("\nAdding camera error terms ({})", dataset_.getTopic());
@@ -530,18 +535,21 @@ void IccCamera::addCameraErrorTerms(
     if (camera_->getFrameType() ==
         typeid(aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>)
             .hash_code()) {
-      frame = new aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>();
+      frame =
+          new aslam::Frame<aslam::cameras::DistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(
                    aslam::Frame<aslam::cameras::
                                     EquidistantDistortedPinholeCameraGeometry>)
                    .hash_code()) {
-      frame = new aslam::Frame<aslam::cameras::EquidistantDistortedPinholeCameraGeometry>();
+      frame = new aslam::Frame<
+          aslam::cameras::EquidistantDistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<
                           aslam::cameras::FovDistortedPinholeCameraGeometry>)
                    .hash_code()) {
-      frame = new aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>();
+      frame =
+          new aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>();
     } else if (camera_->getFrameType() ==
                typeid(aslam::Frame<aslam::cameras::PinholeCameraGeometry>)
                    .hash_code()) {
@@ -569,8 +577,7 @@ void IccCamera::addCameraErrorTerms(
     frame->setGeometryBase(camera_->getGeometry());
 
     for (size_t pidx = 0; pidx < imageCornerPoints.size(); ++pidx) {
-      aslam::KeypointBase* k =
-          new aslam::Keypoint<2>();
+      aslam::KeypointBase* k = new aslam::Keypoint<2>();
       k->vsSetMeasurement(Eigen::Vector2d(imageCornerPoints[pidx].x,
                                           imageCornerPoints[pidx].y));
       k->vsSetInverseMeasurementCovariance(invR);
@@ -625,8 +632,7 @@ void IccCamera::addCameraErrorTerms(
         rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
             aslam::Frame<aslam::cameras::FovDistortedPinholeCameraGeometry>>>(
             reinterpret_cast<aslam::Frame<
-                aslam::cameras::FovDistortedPinholeCameraGeometry>*>(
-                frame),
+                aslam::cameras::FovDistortedPinholeCameraGeometry>*>(frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(
@@ -636,8 +642,7 @@ void IccCamera::addCameraErrorTerms(
         rerr = std::make_shared<aslam::backend::SimpleReprojectionError<
             aslam::Frame<aslam::cameras::PinholeCameraGeometry>>>(
             reinterpret_cast<
-                aslam::Frame<aslam::cameras::PinholeCameraGeometry>*>(
-                frame),
+                aslam::Frame<aslam::cameras::PinholeCameraGeometry>*>(frame),
             pidx, p);
       } else if (camera_->getReprojectionErrorType() ==
                  typeid(aslam::backend::SimpleReprojectionError<aslam::Frame<
@@ -824,8 +829,7 @@ double IccCameraChain::getResultTimeshift(int camNr) const {
 
 void IccCameraChain::addCameraChainerrorTerms(
     aslam::backend::OptimizationProblemBase& problem,
-    aslam::splines::BSplinePoseDesignVariable*
-        poseSplineDv,
+    aslam::splines::BSplinePoseDesignVariable* poseSplineDv,
     double blakeZissermanDf, double timeOffsetPadding) {
   for (auto [camNr, cam] : std::ranges::views::enumerate(camList_)) {
     aslam::backend::TransformationExpression T_chain;
@@ -1073,12 +1077,10 @@ void IccImu::addBiasMotionTerms(
   Eigen::Matrix3d Waccel =
       Eigen::Matrix3d::Identity() / (accelRandomWalk_ * accelRandomWalk_);
   auto gyroBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_,
-                                                       Wgyro,1);
+      aslam::splines::EuclideanBSplineDesignVariable>>(gyroBiasDv_, Wgyro, 1);
   problem.addErrorTerm(gyroBiasMotionErr);
   auto accelBiasMotionErr = std::make_shared<aslam::backend::BSplineMotionError<
-      aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_,
-                                                       Waccel,1);
+      aslam::splines::EuclideanBSplineDesignVariable>>(accelBiasDv_, Waccel, 1);
   problem.addErrorTerm(accelBiasMotionErr);
 }
 
@@ -1188,7 +1190,7 @@ void IccImu::findOrientationPrior(const IccImu& referenceImu) {
   }
 
   auto corr = math_utils::correlate_full(referenceAbsoluteOmega(0.0),
-                            absoluteOmega(0.0));
+                                         absoluteOmega(0.0));
   Eigen::Index discrete_shift;
   corr.maxCoeff(&discrete_shift);
   discrete_shift -= (absoluteOmega(0.0).size() - 1);

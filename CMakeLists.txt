@@ -88,7 +88,14 @@ add_library(aslam_cv_error_terms::aslam_cv_error_terms ALIAS aslam_cv_error_term
 
 
 
-file(GLOB_RECURSE SRC_FILES src/*.cpp)
+file(GLOB_RECURSE SRC_FILES 
+    src/*.cpp 
+    src/kalibr_imu_camera_calibration/*.cpp
+    src/kalibr_errorterms/*.cpp
+    src/kalibr_common/*.cpp
+    src/kalibr_backend/*.cpp
+    src/kalibr_camera_calibration/*.cpp
+)
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 

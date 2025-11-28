@@ -3,13 +3,13 @@
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
-#include <IccCalibrator.hpp>
-#include <IccPlots.hpp>
-#include <IccSensors.hpp>
-#include <IccUtils.hpp>
 #include <filesystem>
 #include <format>
 #include <format_utils.hpp>
+#include <kalibr_imu_camera_calibration/IccCalibrator.hpp>
+#include <kalibr_imu_camera_calibration/IccPlots.hpp>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
+#include <kalibr_imu_camera_calibration/IccUtils.hpp>
 #include <print>
 #include <ranges>
 #include <sm/plot/plotCoordinateFrame.hpp>

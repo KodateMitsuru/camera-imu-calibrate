@@ -1,6 +1,4 @@
 #include <Eigen/Core>
-#include <IccCalibrator.hpp>
-#include <IccSensors.hpp>
 #include <aslam/backend/BSplineMotionErrorFactory.hpp>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/EuclideanDirection.hpp>
@@ -12,6 +10,8 @@
 #include <cstddef>
 #include <exception>
 #include <format_utils.hpp>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
+#include <kalibr_imu_camera_calibration/IccCalibrator.hpp>
 #include <memory>
 #include <print>
 #include <stdexcept>

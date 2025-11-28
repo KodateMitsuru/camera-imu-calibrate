@@ -209,7 +209,10 @@ void ImuDatasetReader::loadFromCSV() {
           continue;
         }
       }
-
+      std::sort(measurements_.begin(), measurements_.end(),
+                [](const ImuData& a, const ImuData& b) {
+                  return a.timestamp < b.timestamp;
+                });
     } else {
       throw std::runtime_error("Could not open CSV file: " + csvFile_);
     }

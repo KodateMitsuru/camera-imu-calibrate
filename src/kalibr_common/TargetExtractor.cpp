@@ -46,7 +46,7 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
   std::vector<aslam::cameras::GridCalibrationTargetObservation>
       targetObservations;
   size_t numImages = dataset.numImages();
-
+  std::println("Extracting corners from {} images...", numImages);
   auto iProgress = sm::progress::Progress2(numImages);
   iProgress.sample();
 
@@ -67,7 +67,7 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
       for (const auto& [timestamp, image] : dataset) {
         tasks.emplace_back(idx++, timestamp, image.clone());
       }
-
+      std::println("  Prepared {} extraction tasks", tasks.size());
       // Prepare result containers for each thread
       std::vector<std::vector<ExtractionResult>> threadResults(numProcesses);
 

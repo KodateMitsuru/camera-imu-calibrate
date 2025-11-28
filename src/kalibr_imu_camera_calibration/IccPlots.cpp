@@ -1,12 +1,11 @@
-#include "format_utils.hpp"
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
-#include <IccCalibrator.hpp>
-#include <IccPlots.hpp>
-#include <IccSensors.hpp>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <cmath>
 #include <cstdio>
+#include <kalibr_imu_camera_calibration/IccCalibrator.hpp>
+#include <kalibr_imu_camera_calibration/IccPlots.hpp>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -14,6 +13,7 @@
 
 #include "bsplines/BSpline.hpp"
 #include "bsplines/BSplinePose.hpp"
+#include "format_utils.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
 #include "matplot/freestanding/axes_functions.h"
 

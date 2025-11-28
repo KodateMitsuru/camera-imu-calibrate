@@ -242,7 +242,7 @@ void ImageDatasetReader::truncateIndicesFromTime(
                  removed, indices_.size());
   }
 
-  indices_ = std::move(validIndices);
+  indices_.swap(validIndices);
 }
 
 void ImageDatasetReader::truncateIndicesFromFreq(double freq) {
@@ -282,16 +282,16 @@ void ImageDatasetReader::truncateIndicesFromFreq(double freq) {
         removed, indices_.size());
   }
 
-  indices_ = std::move(validIndices);
+  indices_.swap(validIndices);
 }
 
 std::pair<aslam::Time, cv::Mat> ImageDatasetReader::getImage(size_t idx) const {
-  if (idx >= indices_.size()) {
+  if (idx >= images_.size()) {
     throw std::out_of_range("Image index out of range: " + std::to_string(idx) +
-                            " >= " + std::to_string(indices_.size()));
+                            " >= " + std::to_string(images_.size()));
   }
 
-  const ImageInfo& info = images_[indices_[idx]];
+  const ImageInfo& info = images_[idx];
 
   // Load image
   cv::Mat image = cv::imread(info.filepath.string(), cv::IMREAD_UNCHANGED);
