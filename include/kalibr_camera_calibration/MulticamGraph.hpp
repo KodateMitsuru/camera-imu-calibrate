@@ -2,12 +2,12 @@
 #define KALIBR_CAMERA_CALIBRATION_MULTICAM_GRAPH_HPP
 
 #include <Eigen/Core>
+#include <format_utils.hpp>
 #include <optional>
 #include <set>
 #include <sm/kinematics/Transformation.hpp>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 

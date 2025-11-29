@@ -7,7 +7,7 @@
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/cameras/CameraGeometryBase.hpp>
 #include <aslam/cameras/GridCalibrationTargetObservation.hpp>
-#include <cmath>
+#include <format_utils.hpp>
 #include <iostream>
 #include <memory>
 #include <optional>

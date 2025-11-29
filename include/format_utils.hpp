@@ -1,3 +1,4 @@
+#pragma once
 #include <Eigen/Eigen>
 #include <format>
 #include <iostream>

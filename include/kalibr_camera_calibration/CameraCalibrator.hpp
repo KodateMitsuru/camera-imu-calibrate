@@ -15,6 +15,7 @@
 #include <aslam/cameras/CameraGeometryBase.hpp>
 #include <aslam/cameras/GridCalibrationTargetObservation.hpp>
 #include <aslam/cameras/GridDetector.hpp>
+#include <format_utils.hpp>
 #include <functional>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <kalibr_common/ConfigReader.hpp>

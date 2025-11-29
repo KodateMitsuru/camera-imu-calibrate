@@ -73,4 +73,19 @@ inline Eigen::VectorXd correlate_full(const Eigen::VectorXd& a,
   return result;
 }
 
+// Compute median of rotations and translations
+inline Eigen::Vector3d computeMedian(std::vector<Eigen::Vector3d>& vecs) {
+  Eigen::Vector3d median;
+  for (int i = 0; i < 3; ++i) {
+    std::vector<double> vals;
+    vals.reserve(vecs.size());
+    for (const auto& v : vecs) {
+      vals.push_back(v(i));
+    }
+    std::sort(vals.begin(), vals.end());
+    median(i) = vals[vals.size() / 2];
+  }
+  return median;
+};
+
 }  // namespace math_utils

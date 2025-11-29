@@ -16,6 +16,7 @@
 #include <sm/kinematics/homogeneous_coordinates.hpp>
 #include <sm/kinematics/transformations.hpp>
 #include <vector>
+#include "math_utils.hpp"
 
 #include "aslam/backend/Optimizer2Options.hpp"
 #include "aslam/backend/RotationQuaternion.hpp"
@@ -151,23 +152,8 @@ StereoCalibrateResult stereoCalibrate(
       return result;
     }
 
-    // Compute median of rotations and translations
-    auto computeMedian = [](std::vector<Eigen::Vector3d>& vecs) {
-      Eigen::Vector3d median;
-      for (int i = 0; i < 3; ++i) {
-        std::vector<double> vals;
-        vals.reserve(vecs.size());
-        for (const auto& v : vecs) {
-          vals.push_back(v(i));
-        }
-        std::sort(vals.begin(), vals.end());
-        median(i) = vals[vals.size() / 2];
-      }
-      return median;
-    };
-
-    Eigen::Vector3d r_median = computeMedian(r_vec);
-    Eigen::Vector3d t_median = computeMedian(t_vec);
+    Eigen::Vector3d r_median = math_utils::computeMedian(r_vec);
+    Eigen::Vector3d t_median = math_utils::computeMedian(t_vec);
     Eigen::Matrix3d R_median = rv.parametersToRotationMatrix(r_median);
 
     baseline_HL = sm::kinematics::Transformation(

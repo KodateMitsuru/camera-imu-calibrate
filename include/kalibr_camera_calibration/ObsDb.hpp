@@ -4,6 +4,7 @@
 #include <aslam/Time.hpp>
 #include <aslam/cameras/GridCalibrationTargetObservation.hpp>
 #include <cstddef>
+#include <format_utils.hpp>
 #include <map>
 #include <set>
 #include <unordered_map>

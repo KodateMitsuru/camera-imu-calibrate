@@ -13,6 +13,7 @@
 #include <aslam/backend/TransformationExpression.hpp>
 #include <aslam/cameras/CameraGeometryBase.hpp>
 #include <aslam/cameras/GridCalibrationTargetObservation.hpp>
+#include <format_utils.hpp>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <memory>
 #include <optional>
