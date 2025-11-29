@@ -4,12 +4,12 @@
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
-#include "IccCalibrator.hpp"
-#include <map>
 #include <memory>
 #include <sm/plot/PlotCollection.hpp>
 #include <string>
 #include <vector>
+
+#include "IccCalibrator.hpp"
 
 namespace kalibr {
 
@@ -104,13 +104,12 @@ void plotAccelerations(const IccCalibrator& calibrator, int imuIdx,
 /**
  * @brief Plot vector over time (generic)
  */
-std::vector<matplot::axes_handle> plotVectorOverTime(const std::vector<double>& times,
-                        const std::vector<Eigen::Vector3d>& values,
-                        const std::string& title = "",
-                        const std::string& ylabel = "",
-                        const std::string& label = "", int figureNumber = 1,
-                        bool clearFigure = true, bool noShow = false,
-                        double lineWidth = 3.0);
+std::vector<matplot::axes_handle> plotVectorOverTime(
+    const std::vector<double>& times,
+    const std::vector<Eigen::Vector3d>& values, const std::string& title = "",
+    const std::string& ylabel = "", const std::string& label = "",
+    int figureNumber = 1, bool clearFigure = true, bool noShow = false,
+    double lineWidth = 3.0);
 
 /**
  * @brief Plot reprojection error scatter

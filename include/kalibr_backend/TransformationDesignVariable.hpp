@@ -1,13 +1,14 @@
 #ifndef KALIBR_BACKEND_TRANSFORMATION_DESIGN_VARIABLE_HPP
 #define KALIBR_BACKEND_TRANSFORMATION_DESIGN_VARIABLE_HPP
 
-#include "aslam/backend/TransformationBasic.hpp"
 #include <Eigen/Core>
 #include <aslam/backend/EuclideanPoint.hpp>
 #include <aslam/backend/RotationQuaternion.hpp>
 #include <aslam/backend/TransformationExpression.hpp>
 #include <memory>
 #include <sm/kinematics/Transformation.hpp>
+
+#include "aslam/backend/TransformationBasic.hpp"
 
 namespace aslam {
 namespace backend {
@@ -62,10 +63,10 @@ class TransformationDesignVariable {
 
  private:
   sm::kinematics::Transformation initial_T_;
-  std::shared_ptr<RotationQuaternion> q_;  // Rotation quaternion
-  std::shared_ptr<EuclideanPoint> t_;      // Translation vector
+  std::shared_ptr<RotationQuaternion> q_;          // Rotation quaternion
+  std::shared_ptr<EuclideanPoint> t_;              // Translation vector
   std::shared_ptr<TransformationBasic> basic_dv_;  // Combined expression
-  TransformationExpression expression_;    // Combined expression
+  TransformationExpression expression_;            // Combined expression
 };
 
 }  // namespace backend

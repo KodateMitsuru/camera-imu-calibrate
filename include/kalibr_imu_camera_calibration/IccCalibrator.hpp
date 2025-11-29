@@ -1,6 +1,8 @@
 #ifndef ICC_CALIBRATOR_HPP
 #define ICC_CALIBRATOR_HPP
 
+#include <aslam/calibration/core/OptimizationProblem.h>
+
 #include <Eigen/Core>
 #include <aslam/backend/DesignVariable.hpp>
 #include <aslam/backend/EuclideanDirection.hpp>
@@ -9,14 +11,11 @@
 #include <aslam/backend/OptimizationProblem.hpp>
 #include <aslam/backend/Optimizer2.hpp>
 #include <aslam/backend/Optimizer2Options.hpp>
-#include <aslam/calibration/core/OptimizationProblem.h>
 #include <aslam/splines/BSplinePoseDesignVariable.hpp>
 #include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
 #include <bsplines/BSplinePose.hpp>
-#include <concepts>
 #include <memory>
 #include <string>
-#include <typeinfo>
 #include <vector>
 
 #include "IccSensors.hpp"
@@ -98,9 +97,7 @@ class IccCalibrator {
     return poseDv_;
   }
   // 保存gravityDv_的实际类型信息
-  std::size_t getGravityDvType() const {
-    return gravityDvType_;
-  }
+  std::size_t getGravityDvType() const { return gravityDvType_; }
 
   std::shared_ptr<aslam::backend::DesignVariable> getGravityDv() const {
     return gravityDv_;
@@ -117,17 +114,11 @@ class IccCalibrator {
     return cameraChain_;
   }
 
-  const Eigen::VectorXd& getStdTrafoIc() const {
-    return std_trafo_ic_;
-  }
+  const Eigen::VectorXd& getStdTrafoIc() const { return std_trafo_ic_; }
 
-  const Eigen::VectorXd& getStdTimes() const {
-    return std_times_;
-  }
+  const Eigen::VectorXd& getStdTimes() const { return std_times_; }
 
-  bool noTimeCalibration() const {
-    return noTimeCalibration_;
-  }
+  bool noTimeCalibration() const { return noTimeCalibration_; }
 
  private:
   std::vector<std::shared_ptr<IccImu>> imuList_;

@@ -12,7 +12,6 @@
 #include <aslam/splines/EuclideanBSplineDesignVariable.hpp>
 #include <bsplines/BSplinePose.hpp>
 #include <cstddef>
-#include <fstream>
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <kalibr_common/ConfigReader.hpp>
 #include <kalibr_common/ImageDatasetReader.hpp>
@@ -21,16 +20,12 @@
 #include <opencv2/core.hpp>
 #include <ranges>
 #include <string>
-#include <variant>
 #include <vector>
 
 #include "aslam/backend/EuclideanPoint.hpp"
 #include "aslam/backend/RotationQuaternion.hpp"
-#include "kalibr_errorterms/AccelerometerError.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
-#include "kalibr_errorterms/GyroscopeError.hpp"
 #include "sm/kinematics/Transformation.hpp"
-
 
 namespace kalibr {
 
@@ -187,8 +182,7 @@ class IccCamera {
    */
   void addCameraErrorTerms(
       aslam::backend::OptimizationProblemBase& problem,
-      aslam::splines::BSplinePoseDesignVariable*
-          poseSplineDv,
+      aslam::splines::BSplinePoseDesignVariable* poseSplineDv,
       const aslam::backend::TransformationExpression& T_cN_b,
       double blakeZissermanDf = 0.0, double timeOffsetPadding = 0.0);
 
@@ -300,8 +294,7 @@ class IccCameraChain {
 
   void addCameraChainerrorTerms(
       aslam::backend::OptimizationProblemBase& problem,
-      aslam::splines::BSplinePoseDesignVariable*
-          poseSplineDv,
+      aslam::splines::BSplinePoseDesignVariable* poseSplineDv,
       double blakeZissermanDf = 0.0, double timeOffsetPadding = 0.0);
 
   // Getters
@@ -381,11 +374,10 @@ class IccImu {
   template <typename ProblemType>
     requires HasOptimizationProblemMethods<ProblemType>
   void addDesignVariables(ProblemType& problem) {
-    gyroBiasDv_ = new aslam::splines::EuclideanBSplineDesignVariable(
-            *gyroBias_);
+    gyroBiasDv_ =
+        new aslam::splines::EuclideanBSplineDesignVariable(*gyroBias_);
     accelBiasDv_ =
-        new aslam::splines::EuclideanBSplineDesignVariable(
-            *accelBias_);
+        new aslam::splines::EuclideanBSplineDesignVariable(*accelBias_);
 
     addSplineDesignVariables(problem, *gyroBiasDv_, true, HELPER_GROUP_ID);
     addSplineDesignVariables(problem, *accelBiasDv_, true, HELPER_GROUP_ID);
@@ -459,13 +451,11 @@ class IccImu {
   }
 
   // Get bias design variables (for plotting)
-  aslam::splines::EuclideanBSplineDesignVariable*
-  getAccelBiasDv() const {
+  aslam::splines::EuclideanBSplineDesignVariable* getAccelBiasDv() const {
     return accelBiasDv_;
   }
 
-  aslam::splines::EuclideanBSplineDesignVariable*
-  getGyroBiasDv() const {
+  aslam::splines::EuclideanBSplineDesignVariable* getGyroBiasDv() const {
     return gyroBiasDv_;
   }
   int& getGyroBiasPriorCount() { return GyroBiasPriorCount_; }

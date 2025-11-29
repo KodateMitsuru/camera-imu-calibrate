@@ -1,3 +1,4 @@
+#pragma once
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>

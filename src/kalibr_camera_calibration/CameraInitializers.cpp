@@ -16,12 +16,12 @@
 #include <sm/kinematics/homogeneous_coordinates.hpp>
 #include <sm/kinematics/transformations.hpp>
 #include <vector>
-#include "math_utils.hpp"
 
 #include "aslam/backend/Optimizer2Options.hpp"
 #include "aslam/backend/RotationQuaternion.hpp"
 #include "aslam/backend/TransformationBasic.hpp"
 #include "kalibr_camera_calibration/MulticamGraph.hpp"
+#include "math_utils.hpp"
 
 namespace kalibr {
 

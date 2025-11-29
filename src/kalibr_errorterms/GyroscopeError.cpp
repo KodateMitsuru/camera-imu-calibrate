@@ -1,5 +1,6 @@
-#include "format_utils.hpp"
 #include <kalibr_errorterms/GyroscopeError.hpp>
+
+#include "format_utils.hpp"
 
 namespace kalibr_errorterms {
 

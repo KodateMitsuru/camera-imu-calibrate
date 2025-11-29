@@ -95,7 +95,8 @@ std::ostream& operator<<(std::ostream& os, const MatT& mat) {
 // versions where std::format's selection can be ambiguous. This casts to
 // 64-bit for formatting purposes (the library consistently uses 64-bit
 // timestamps elsewhere). Guarded to only compile with GNU's libstdc++.
-#if (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 15) || (defined(__GNUC__) && __GNUC__ < 15)
+#if (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 15) || \
+    (defined(__GNUC__) && __GNUC__ < 15)
 namespace std {
 // signed __int128
 template <typename CharT>

@@ -136,9 +136,9 @@ class ImuDatasetReader {
   bool detectCSVFormat(const std::vector<std::string>& header);
 
   std::string csvFile_;
-  std::vector<ImuData> measurements_;  // All measurements
-  std::vector<size_t> indices_;               // Valid indices after filtering
-  std::vector<size_t> shuffledIndices_;       // For shuffled reading
+  std::vector<ImuData> measurements_;    // All measurements
+  std::vector<size_t> indices_;          // Valid indices after filtering
+  std::vector<size_t> shuffledIndices_;  // For shuffled reading
 
   // CSV column indices (after format detection)
   int colTimestamp_ = 0;

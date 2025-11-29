@@ -10,19 +10,15 @@
 #include <cstddef>
 #include <exception>
 #include <format_utils.hpp>
-#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <kalibr_imu_camera_calibration/IccCalibrator.hpp>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <memory>
 #include <print>
 #include <stdexcept>
 #include <thread>
 
 #include "aslam/backend/BlockCholeskyLinearSystemSolver.hpp"
-#include "aslam/backend/DenseQrLinearSystemSolver.hpp"
-#include "aslam/backend/DesignVariable.hpp"
 #include "aslam/backend/LevenbergMarquardtTrustRegionPolicy.hpp"
-#include "aslam/backend/SparseCholeskyLinearSystemSolver.hpp"
-#include "aslam/backend/SparseQrLinearSystemSolver.hpp"
 #include "aslam/calibration/core/IncrementalEstimator.h"
 #include "bsplines/BSplinePose.hpp"
 

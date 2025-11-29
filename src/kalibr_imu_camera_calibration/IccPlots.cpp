@@ -1,19 +1,17 @@
 #include <matplot/matplot.h>
 
 #include <Eigen/Core>
-#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <cmath>
 #include <cstdio>
 #include <kalibr_imu_camera_calibration/IccCalibrator.hpp>
 #include <kalibr_imu_camera_calibration/IccPlots.hpp>
-#include <map>
+#include <kalibr_imu_camera_calibration/IccSensors.hpp>
 #include <memory>
 #include <numeric>
 #include <vector>
 
 #include "bsplines/BSpline.hpp"
 #include "bsplines/BSplinePose.hpp"
-#include "format_utils.hpp"
 #include "kalibr_errorterms/EuclideanError.hpp"
 #include "matplot/freestanding/axes_functions.h"
 
@@ -470,10 +468,11 @@ void plotAccelBias(const IccCalibrator& calibrator, int imuIdx,
   }
 
   // Plot the bias over time
-  auto subplots = plotVectorOverTime(times, biases,
-                     "imu" + std::to_string(imuIdx) +
-                         ": estimated accelerometer bias (imu frame)",
-                     "bias (m/s^2)", "", figureNumber, clearFigure, noShow);
+  auto subplots =
+      plotVectorOverTime(times, biases,
+                         "imu" + std::to_string(imuIdx) +
+                             ": estimated accelerometer bias (imu frame)",
+                         "bias (m/s^2)", "", figureNumber, clearFigure, noShow);
 
   // Get accelerometer random walk sigma for bounds calculation
   auto [_, sigma_rw, __] = imu->getImuConfig().getAccelerometerStatistics();
@@ -851,7 +850,8 @@ void plotReprojectionScatter(const IccCalibrator& calibrator, int camId,
           static_cast<float>(image_id) / static_cast<float>(numImages - 1);
 
       // Create color array: interpolate from blue [0, 0, 1] to red [1, 0, 0]
-      std::array<float, 4> color = {t, 0.0f, 1.0f - t, 0.5f};  // RGBA with alpha=0.5
+      std::array<float, 4> color = {t, 0.0f, 1.0f - t,
+                                    0.5f};  // RGBA with alpha=0.5
 
       auto scatter = matplot::scatter(errors_x, errors_y);
       scatter->marker("x");
