@@ -3,7 +3,7 @@
 # Add test for camera-imu calibration with test data
 add_test(
     NAME calibrate_test_data
-    COMMAND ${CMAKE_BINARY_DIR}/camera_imu_calibrate
+    COMMAND ${CMAKE_BINARY_DIR}/calibrate imu_camera
         --dataset-name mydata
         --cams ${CMAKE_SOURCE_DIR}/test_data/cam_april-camchain.yaml
         --imu ${CMAKE_SOURCE_DIR}/test_data/imu_adis16448.yaml
@@ -19,7 +19,7 @@ set_tests_properties(calibrate_test_data PROPERTIES
 
 add_test(
     NAME calibrate_help
-    COMMAND ${CMAKE_BINARY_DIR}/camera_imu_calibrate --help
+    COMMAND ${CMAKE_BINARY_DIR}/calibrate --help
 )
 
 set_tests_properties(calibrate_help PROPERTIES

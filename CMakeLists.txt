@@ -18,9 +18,6 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(FFTW REQUIRED fftw3 IMPORTED_TARGET)
 pkg_search_module(Magick++ REQUIRED Magick++ IMPORTED_TARGET)
 
-# Disable tests in third-party libraries
-set(BUILD_TESTING OFF CACHE BOOL "Disable third-party tests" FORCE)
-
 add_subdirectory(thirdparty/argparse)
 add_subdirectory(thirdparty/matplotplusplus)
 add_subdirectory(thirdparty/lunasvg)
@@ -129,9 +126,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${OpenCV_INCLUDE_DIRS}
 )
 
-# Re-enable testing for our own tests only
-set(BUILD_TESTING ON CACHE BOOL "Enable our own tests" FORCE)
-enable_testing()
+if (BUILD_TESTING)
 
 add_subdirectory(tests)
+
+endif()
 
