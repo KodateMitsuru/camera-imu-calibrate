@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(camera_imu_calibrate)
+project(calibrate)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

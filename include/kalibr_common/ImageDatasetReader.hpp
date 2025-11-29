@@ -64,10 +64,13 @@ class ImageDatasetReader {
    * (empty = load all)
    * @param targetFreq Target frequency for downsampling in Hz (0 = no
    * downsampling)
+   * @param targetResolution Target resolution [width, height] for resizing
+   * images (0,0 = no resizing)
    */
   ImageDatasetReader(const std::string& imageFolder,
                      const std::pair<double, double>& from_to = {0.0, 0.0},
-                     double targetFreq = 0.0);
+                     double targetFreq = 0.0,
+                     const std::pair<int, int>& targetResolution = {0, 0});
 
   /**
    * @brief Get number of images in dataset
@@ -140,9 +143,10 @@ class ImageDatasetReader {
   bool isSupportedImageFormat(const std::string& extension) const;
 
   std::string imageFolder_;
-  std::vector<ImageInfo> images_;        // All discovered images
-  std::vector<size_t> indices_;          // Valid indices after filtering
-  std::vector<size_t> shuffledIndices_;  // For shuffled reading
+  std::vector<ImageInfo> images_;         // All discovered images
+  std::vector<size_t> indices_;           // Valid indices after filtering
+  std::vector<size_t> shuffledIndices_;   // For shuffled reading
+  std::pair<int, int> targetResolution_;  // Target resolution for resizing
 };
 
 }  // namespace kalibr

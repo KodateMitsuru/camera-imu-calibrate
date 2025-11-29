@@ -1,6 +1,7 @@
-#include "format_utils.hpp"
 #include <kalibr_backend/TransformationDesignVariable.hpp>
 #include <stdexcept>
+
+#include "format_utils.hpp"
 
 namespace aslam {
 namespace backend {
@@ -19,13 +20,19 @@ TransformationDesignVariable::TransformationDesignVariable(
   Eigen::Vector3d t = transformation.t();
   t_ = std::make_shared<EuclideanPoint>(t);
   t_->setActive(translationActive);
-  
-  basic_dv_ = std::make_shared<TransformationBasic>(
-      q_->toExpression(), t_->toExpression());
-  // Create the transformation expression from rotation and translation
-  // expressions
-  expression_ =
-      TransformationExpression(q_->toExpression(), t_->toExpression());
+
+  // Create the TransformationBasic node that combines rotation and translation
+  // Note: TransformationBasic stores shared_ptr to RotationExpressionNode and
+  // EuclideanExpressionNode, but these are created with null_deleter since
+  // q_ and t_ manage the lifetime. We must keep q_ and t_ alive as long as
+  // the expression is used.
+  basic_dv_ = std::make_shared<TransformationBasic>(q_->toExpression(),
+                                                    t_->toExpression());
+
+  // Create the expression using the shared basic_dv_
+  // This ensures only one TransformationBasic is created and properly managed
+  expression_ = TransformationExpression(
+      std::static_pointer_cast<TransformationExpressionNode>(basic_dv_));
 }
 
 TransformationExpression TransformationDesignVariable::toExpression() const {
@@ -47,7 +54,6 @@ std::shared_ptr<DesignVariable> TransformationDesignVariable::getDesignVariable(
                              " >= 2");
   }
 }
-
 
 }  // namespace backend
 }  // namespace aslam

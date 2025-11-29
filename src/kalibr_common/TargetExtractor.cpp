@@ -11,21 +11,22 @@
 namespace kalibr {
 
 void multicoreExtractionWorker(aslam::cameras::GridDetector detector,
-                               const std::vector<ExtractionTask>& tasks,
+                               const ImageDatasetReader* dataset,
+                               const std::vector<size_t>& indices,
                                std::vector<ExtractionResult>& results,
-                               size_t startIdx, size_t endIdx, bool clearImages,
-                               bool noTransformation) {
-  for (size_t i = startIdx; i < endIdx && i < tasks.size(); ++i) {
-    const auto& task = tasks[i];
+                               bool clearImages, bool noTransformation) {
+  results.reserve(indices.size());
+
+  for (size_t idx : indices) {
+    auto [timestamp, image] = dataset->getImage(idx);
 
     bool success = false;
     aslam::cameras::GridCalibrationTargetObservation obs;
 
     if (noTransformation) {
-      success =
-          detector.findTargetNoTransformation(task.image, task.timestamp, obs);
+      success = detector.findTargetNoTransformation(image, timestamp, obs);
     } else {
-      success = detector.findTarget(task.image, task.timestamp, obs);
+      success = detector.findTarget(image, timestamp, obs);
     }
 
     if (clearImages) {
@@ -33,7 +34,7 @@ void multicoreExtractionWorker(aslam::cameras::GridDetector detector,
     }
 
     if (success) {
-      results.emplace_back(obs, task.idx);
+      results.emplace_back(obs, idx);
     }
   }
 }
@@ -59,40 +60,32 @@ extractCornersFromDataset(const ImageDatasetReader& dataset,
     std::println("  Using {} threads for extraction", numProcesses);
 
     try {
-      // Prepare all tasks
-      std::vector<ExtractionTask> tasks;
-      tasks.reserve(numImages);
+      // Prepare index lists for each thread (no image loading yet)
+      std::vector<std::vector<size_t>> threadIndices(numProcesses);
 
-      size_t idx = 0;
-      for (const auto& [timestamp, image] : dataset) {
-        tasks.emplace_back(idx++, timestamp, image.clone());
+      // Distribute indices evenly across threads
+      for (size_t i = 0; i < numImages; ++i) {
+        threadIndices[i % numProcesses].push_back(i);
       }
-      std::println("  Prepared {} extraction tasks", tasks.size());
+
       // Prepare result containers for each thread
       std::vector<std::vector<ExtractionResult>> threadResults(numProcesses);
 
-      // Calculate workload per thread
-      size_t tasksPerThread = tasks.size() / numProcesses;
-      size_t remainingTasks = tasks.size() % numProcesses;
-
-      // Launch threads
+      // Launch threads - each thread loads and processes its own images
       std::vector<std::thread> threads;
       threads.reserve(numProcesses);
 
-      size_t currentIdx = 0;
       for (unsigned int threadIdx = 0; threadIdx < numProcesses; ++threadIdx) {
-        size_t startIdx = currentIdx;
-        size_t endIdx =
-            startIdx + tasksPerThread + (threadIdx < remainingTasks ? 1 : 0);
-        currentIdx = endIdx;
-
         // Create a copy of the detector for each thread
         aslam::cameras::GridDetector detectorCopy = detector;
 
-        threads.emplace_back(multicoreExtractionWorker, std::move(detectorCopy),
-                             std::cref(tasks),
-                             std::ref(threadResults[threadIdx]), startIdx,
-                             endIdx, clearImages, noTransformation);
+        threads.emplace_back([detectorCopy = std::move(detectorCopy), &dataset,
+                              &indices = threadIndices[threadIdx],
+                              &results = threadResults[threadIdx], clearImages,
+                              noTransformation]() mutable {
+          multicoreExtractionWorker(std::move(detectorCopy), &dataset, indices,
+                                    results, clearImages, noTransformation);
+        });
       }
 
       // Monitor progress

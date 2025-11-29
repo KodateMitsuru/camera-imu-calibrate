@@ -35,10 +35,10 @@ std::pair<aslam::Time, cv::Mat> ImageDatasetReaderIterator::operator*() const {
 // ImageDatasetReader Implementation
 // ============================================================================
 
-ImageDatasetReader::ImageDatasetReader(const std::string& imageFolder,
-                                       const std::pair<double, double>& from_to,
-                                       double targetFreq)
-    : imageFolder_(imageFolder) {
+ImageDatasetReader::ImageDatasetReader(
+    const std::string& imageFolder, const std::pair<double, double>& from_to,
+    double targetFreq, const std::pair<int, int>& targetResolution)
+    : imageFolder_(imageFolder), targetResolution_(targetResolution) {
   if (!std::filesystem::exists(imageFolder)) {
     throw std::runtime_error("Image folder does not exist: " + imageFolder);
   }
@@ -73,6 +73,10 @@ ImageDatasetReader::ImageDatasetReader(const std::string& imageFolder,
 
   std::println("ImageDatasetReader: Loaded {} images from {}", indices_.size(),
                imageFolder);
+  if (targetResolution_.first > 0 && targetResolution_.second > 0) {
+    std::println("ImageDatasetReader: Target resolution: {}x{}",
+                 targetResolution_.first, targetResolution_.second);
+  }
 }
 
 void ImageDatasetReader::loadImageFiles() {
@@ -311,6 +315,16 @@ std::pair<aslam::Time, cv::Mat> ImageDatasetReader::getImage(size_t idx) const {
   if (image.depth() == CV_16U) {
     // 16-bit to 8-bit conversion
     image.convertTo(image, CV_8U, 1.0 / 256.0);
+  }
+
+  // Resize to target resolution if specified
+  if (targetResolution_.first > 0 && targetResolution_.second > 0) {
+    int targetWidth = targetResolution_.first;
+    int targetHeight = targetResolution_.second;
+    if (image.cols != targetWidth || image.rows != targetHeight) {
+      cv::resize(image, image, cv::Size(targetWidth, targetHeight), 0, 0,
+                 cv::INTER_LINEAR);
+    }
   }
 
   return {info.timestamp, image};
