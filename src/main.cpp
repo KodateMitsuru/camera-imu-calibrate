@@ -1168,10 +1168,9 @@ int runCameraCalibration(argparse::ArgumentParser& cmd) {
         std::string basetag = dataset_path.stem().string();
 
         std::string resultFile = basetag + "-camchain.yaml";
-        // TODO: Implement saveChainParametersYaml for CameraCalibration
-        // kalibr::saveChainParametersYaml(calibrator, resultFile, graph);
+        kalibr::saveChainParametersYaml(calibrator, resultFile, &graph);
         std::println("Results written to:");
-        std::println("  Camera chain calibration: {} (TODO)", resultFile);
+        std::println("  Camera chain calibration: {}", resultFile);
 
         // Save detailed results
         std::string resultFileTxt = basetag + "-results-cam.txt";
@@ -1192,9 +1191,17 @@ int runCameraCalibration(argparse::ArgumentParser& cmd) {
           std::println("");
           std::println("Exporting poses...");
           std::string posesFile = basetag + "-poses-cam0.csv";
-          // TODO: Implement exportPoses for CameraCalibration
-          // kalibr::exportPoses(calibrator, posesFile);
-          std::println("  Poses: {} (TODO)", posesFile);
+          // Collect (timestamp, T_tc_guess) for each view
+          std::vector<std::pair<double, sm::kinematics::Transformation>> poses;
+          const auto& views = calibrator.getViews();
+          for (const auto& v : views) {
+            if (v) {
+              double ts = v->timestamp.toSec();
+              poses.emplace_back(ts, v->T_tc_guess);
+            }
+          }
+          kalibr::exportPoses(poses, posesFile);
+          std::println("  Poses written to {}", posesFile);
         }
 
         std::println("");

@@ -998,6 +998,12 @@ void CameraChainParameters::setCamOverlaps(size_t camIdx,
       data_["cam" + std::to_string(camIdx)])["overlaps"] = overlaps;
 }
 
+void CameraChainParameters::addCameraAtEnd(const CameraParameters& camParams) {
+  size_t camIdx = numCameras();
+  std::string camKey = "cam" + std::to_string(camIdx);
+  data_[camKey] = camParams.getYamlDict();
+}
+
 void CameraChainParameters::checkCameraIndex(size_t camIdx) const {
   if (camIdx >= numCameras()) {
     raiseError("Camera index " + std::to_string(camIdx) +

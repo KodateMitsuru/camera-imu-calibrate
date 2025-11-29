@@ -306,6 +306,16 @@ void saveResultTxt(
     const std::string& filename = "camera_calibration_result.txt");
 
 /**
+ * @brief Save camera chain parameters to YAML file
+ * @param calibrator CameraCalibration object
+ * @param filename Output YAML filename
+ * @param graph MulticamGraph for overlap information (optional)
+ */
+void saveChainParametersYaml(const CameraCalibration& calibrator,
+                             const std::string& filename,
+                             const class MulticamGraph* graph = nullptr);
+
+/**
  * @brief Print calibration parameters to stream
  * @param calibrator CameraCalibration object
  * @param out Output stream

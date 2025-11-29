@@ -2,9 +2,10 @@
 #define KALIBR_COMMON_CONFIG_READER_HPP
 
 #include <Eigen/Dense>
-#include <aslam/cameras/CameraGeometryBase.hpp>
+#include <any>
 #include <aslam/backend/ErrorTerm.hpp>
 #include <aslam/backend/HomogeneousExpression.hpp>
+#include <aslam/cameras/CameraGeometryBase.hpp>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -13,7 +14,6 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-#include <any>
 
 namespace kalibr {
 
@@ -48,7 +48,8 @@ enum class TargetType { Aprilgrid, Checkerboard, Circlegrid };
 class ParametersBase {
  public:
   using DictType = std::unordered_map<std::string, std::any>;
-  ParametersBase(const std::string& yamlFile, const std::string& name, bool createYaml = false);
+  ParametersBase(const std::string& yamlFile, const std::string& name,
+                 bool createYaml = false);
   virtual ~ParametersBase() = default;
 
   /**
@@ -84,7 +85,8 @@ class ParametersBase {
  */
 class CameraParameters : public ParametersBase {
  public:
-  explicit CameraParameters(const std::string& yamlFile,bool createYaml = false);
+  explicit CameraParameters(const std::string& yamlFile,
+                            bool createYaml = false);
 
   // Accessors
   std::string getImageFolder() const;
@@ -150,13 +152,13 @@ class ImuParameters : public ParametersBase {
 
 class ImuSetParameters : public ParametersBase {
  public:
-  explicit ImuSetParameters(const std::string& yamlFile, bool createYaml = false);
+  explicit ImuSetParameters(const std::string& yamlFile,
+                            bool createYaml = false);
 
-  size_t numImus() const {
-    return imuCount_;
-  }
+  size_t numImus() const { return imuCount_; }
 
-  void addImuConfig(const ImuParameters& imuConfig,std::string name = "");
+  void addImuConfig(const ImuParameters& imuConfig, std::string name = "");
+
  private:
   size_t imuCount_ = 0;
 };
@@ -213,7 +215,8 @@ class CalibrationTargetParameters : public ParametersBase {
  */
 class CameraChainParameters : public ParametersBase {
  public:
-  explicit CameraChainParameters(const std::string& yamlFile, bool createYaml = false);
+  explicit CameraChainParameters(const std::string& yamlFile,
+                                 bool createYaml = false);
 
   // Accessors
   size_t numCameras() const;
@@ -224,11 +227,13 @@ class CameraChainParameters : public ParametersBase {
   // Not valid for cam0 (base camera)
   sm::kinematics::Transformation getExtrinsicsLastCamToHere(
       size_t camIdx) const;
-  void setExtrinsicsLastCamToHere(size_t camIdx, const sm::kinematics::Transformation& T);
+  void setExtrinsicsLastCamToHere(size_t camIdx,
+                                  const sm::kinematics::Transformation& T);
 
   // Extrinsics from IMU to camera
   sm::kinematics::Transformation getExtrinsicsImuToCam(size_t camIdx) const;
-  void setExtrinsicsImuToCam(size_t camIdx, const sm::kinematics::Transformation& T);
+  void setExtrinsicsImuToCam(size_t camIdx,
+                             const sm::kinematics::Transformation& T);
 
   // Time shift between camera and IMU (t_imu = t_cam + shift)
   double getTimeshiftCamImu(size_t camIdx) const;
@@ -237,6 +242,9 @@ class CameraChainParameters : public ParametersBase {
   // Camera overlap information
   std::vector<int> getCamOverlaps(size_t camIdx) const;
   void setCamOverlaps(size_t camIdx, const std::vector<int>& overlaps);
+
+  // Add camera to the end of the chain
+  void addCameraAtEnd(const CameraParameters& camParams);
 
   // Helpers
   void printDetails(std::ostream& os = std::cout) const;
@@ -271,18 +279,12 @@ class AslamCamera {
     return geometry_;
   }
 
-  std::size_t getFrameType() const {
-    return frameType_;
-  }
-  std::size_t getKeypointType() const {
-    return keypointType_;
-  }
+  std::size_t getFrameType() const { return frameType_; }
+  std::size_t getKeypointType() const { return keypointType_; }
   std::size_t getReprojectionErrorType() const {
     return reprojectionErrorType_;
   }
-  std::size_t getDistortionType() const {
-    return distortionType_;
-  }
+  std::size_t getDistortionType() const { return distortionType_; }
 
  private:
   AslamCamera() = default;

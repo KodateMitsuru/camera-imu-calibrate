@@ -19,6 +19,7 @@
 
 #include "aslam/cameras.hpp"
 #include "kalibr_camera_calibration/CameraCalibrator.hpp"
+#include "kalibr_camera_calibration/MulticamGraph.hpp"
 #include "sm/kinematics/Transformation.hpp"
 
 namespace kalibr {
@@ -478,6 +479,76 @@ void printParameters(const CameraCalibration& calibrator, std::ostream& out) {
     out << "    t: [" << T.t().transpose() << "]" << std::endl;
     out << std::endl;
   }
+}
+
+void saveChainParametersYaml(const CameraCalibration& calibrator,
+                             const std::string& filename,
+                             const MulticamGraph* graph) {
+  const auto& cameras = calibrator.getCameras();
+  const auto& baselines = calibrator.getBaselines();
+
+  // Create camera chain parameters
+  CameraChainParameters chain(filename, true);  // createYaml = true
+
+  for (size_t cam_id = 0; cam_id < cameras.size(); ++cam_id) {
+    const auto& cam = cameras[cam_id];
+    auto geometry = cam->getGeometry();
+    const auto& camModel = cam->getCameraModel();
+
+    // Create camera parameters
+    CameraParameters camParams("", true);  // createYaml = true
+
+    // Set image folder / topic
+    camParams.setImageFolder(cam->getDataset().getTopic());
+
+    // Get camera and distortion model from the original config
+    auto [cameraModel, origIntrinsics] = camModel.getIntrinsics();
+    auto [distortionModel, origDistCoeffs] = camModel.getDistortion();
+
+    // Get current optimized parameters
+    Eigen::MatrixXd projParams, distParams;
+    geometry->getParameters(projParams, true, false, false);  // projection
+    geometry->getParameters(distParams, false, true, false);  // distortion
+
+    // Set intrinsics based on camera model
+    std::vector<double> intrinsics;
+    for (int i = 0; i < projParams.size(); ++i) {
+      intrinsics.push_back(projParams(i));
+    }
+    camParams.setIntrinsics(cameraModel, intrinsics);
+
+    // Get resolution from geometry
+    Eigen::Vector2i resolution(geometry->width(), geometry->height());
+    camParams.setResolution(resolution);
+
+    // Set distortion
+    std::vector<double> distCoeffs;
+    for (int i = 0; i < distParams.size(); ++i) {
+      distCoeffs.push_back(distParams(i));
+    }
+    camParams.setDistortion(distortionModel, distCoeffs);
+
+    // Add camera to chain
+    chain.addCameraAtEnd(camParams);
+  }
+
+  // Set camera overlaps if graph is provided
+  if (graph != nullptr) {
+    for (size_t cam_id = 0; cam_id < cameras.size(); ++cam_id) {
+      auto overlaps = graph->getCamOverlaps(static_cast<int>(cam_id));
+      chain.setCamOverlaps(cam_id, overlaps);
+    }
+  }
+
+  // Set baselines
+  for (size_t bidx = 0; bidx < baselines.size(); ++bidx) {
+    sm::kinematics::Transformation baseline(baselines[bidx]->T());
+    size_t camNr = bidx + 1;  // baseline 0 is from cam0 to cam1, etc.
+    chain.setExtrinsicsLastCamToHere(camNr, baseline);
+  }
+
+  // Write to file
+  chain.writeYaml();
 }
 
 // ============================================================================
